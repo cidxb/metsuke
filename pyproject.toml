@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metsuke"
+version = "0.1.0"
+authors = [
+  # { name="Your Name", email="you@example.com" }, # TODO: Add author details
+]
+description = "AI-Assisted Development Task Manager using YAML plans."
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "PyYAML>=6.0",
+    "pydantic>=2.0",
+    "click>=8.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/your_username/metsuke" # TODO: Update URL
+"Bug Tracker" = "https://github.com/your_username/metsuke/issues" # TODO: Update URL
+
+[project.scripts]
+metsuke = "metsuke.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "flake8",
+    "mypy",
+    "black",
+    "isort",
+]
+tui = [
+    "textual>=0.50.0",
+    "watchdog>=2.0.0",
+    "pyperclip>=1.8.0",
+]
+
+# Optional: Add tool configurations if needed
+# [tool.pytest.ini_options]
+
+# [tool.black]
+# ...
+
+# [tool.isort]
+# ... 
