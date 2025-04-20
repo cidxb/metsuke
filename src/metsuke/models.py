@@ -1,11 +1,53 @@
 # -*- coding: utf-8 -*-
-"""Pydantic models for Metsuke project structure."""
+"""Pydantic models and TypedDicts for Metsuke project structure."""
+# Note: Pydantic models are the primary source of truth for validation.
+# TypedDicts are included for potential use by the TUI if direct dict access is preferred,
+# but using Pydantic model instances (.project.name etc.) is recommended.
 
-from pydantic import BaseModel
+from typing import List, Optional, TypedDict, Literal
+from pydantic import BaseModel, Field
 
-# Placeholder for Pydantic models (Task, Project, etc.)
+
+# --- Pydantic Models (Used by core.py for validation) ---
+
 class Task(BaseModel):
-    pass
+    id: int
+    title: str
+    description: Optional[str] = None
+    status: Literal['pending', 'in_progress', 'Done', 'blocked']
+    priority: Literal['low', 'medium', 'high']
+    dependencies: List[int] = Field(default_factory=list)
+
+
+class ProjectMeta(BaseModel):
+    name: str
+    version: str
+    license: Optional[str] = None
+
 
 class Project(BaseModel):
-    pass 
+    project: ProjectMeta
+    context: Optional[str] = None
+    tasks: List[Task] = Field(default_factory=list)
+
+
+# --- TypedDict Definitions (Mirroring Pydantic for TUI type hints if needed) ---
+# Note: These were extracted from Metsuke.py. Using the Pydantic models above
+# is generally preferred after core.load_plan() is called.
+
+class TuiTaskDict(TypedDict):
+    id: int
+    title: str
+    description: Optional[str]
+    status: str
+    priority: str
+    dependencies: List[int]
+
+class TuiProjectMetaDict(TypedDict):
+    name: str
+    version: str
+
+class TuiPlanDataDict(TypedDict):
+    project: TuiProjectMetaDict
+    tasks: List[TuiTaskDict]
+    context: Optional[str] 

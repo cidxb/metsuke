@@ -8,7 +8,7 @@ This project aims to bring that spirit of focused awareness and clear perception
 
 ## Why Metsuke? Enhancing Human-AI Collaboration 🤝
 
-Working effectively with AI coding assistants requires clear communication and shared context. Metsuke bridges the gap by providing a structured framework based on a `PROJECT_PLAN.yaml` file, leading to significant benefits for both the human developer and the AI:
+Working effectively with AI coding assistants requires clear communication and shared context. Metsuke is designed to work synergistically with AI coding assistants. Its structured approach using `PROJECT_PLAN.yaml` is particularly effective when the AI assistant also operates under a structured protocol (like RIPER-5) that emphasizes clear planning, execution, and review phases. This combination helps ensure predictable, reliable, and aligned collaboration. Metsuke bridges the gap by providing a structured framework based on a `PROJECT_PLAN.yaml` file, leading to significant benefits for both the human developer and the AI:
 
 **For the Human Developer:** 🧑‍💻
 
@@ -17,6 +17,7 @@ Working effectively with AI coding assistants requires clear communication and s
 *   **Improved AI Guidance:** Formulate requests to the AI with less ambiguity by referencing specific tasks and context from the plan.
 *   **Reliable Context:** Avoid losing critical context buried in long chat histories.
 *   **Easier Verification:** Quickly check if AI actions align with the planned tasks.
+*   **Interactive TUI Dashboard (`metsuke tui`):** Gain real-time visibility into the project's status through an optional terminal interface. Visually track task completion progress, view status/priority breakdowns, explore dependencies, check suggested next steps, and monitor internal logs—all providing a convenient, high-level overview of the ongoing work and the AI's activity.
 
 **For the AI Assistant:** 🤖
 
@@ -120,6 +121,150 @@ try:
 except (PlanLoadingError, PlanValidationError) as e:
     print(f"Error loading plan: {e}")
 ```
+
+## Terminal User Interface (TUI)  TUI
+
+The Metsuke TUI provides a visual and interactive way to explore the `PROJECT_PLAN.yaml` content directly in your terminal. It automatically monitors the plan file for changes and updates the display in real-time.
+
+<!-- TODO: Add a screenshot or GIF of the TUI in action -->
+
+**Launching the TUI:**
+
+Ensure you have installed the necessary dependencies:
+```bash
+pip install metsuke[tui]
+```
+Then, run the command:
+```bash
+metsuke tui
+```
+
+**Interface Overview:**
+
+*   **Top Area:** Displays the project title (`Metsuke`) and project metadata (Version, Name, License) loaded from the plan.
+*   **Dashboard:** A panel showing high-level statistics:
+    *   *Left Panel:* Overall task progress bar, counts of tasks by status (Done, In Progress, Pending, Blocked), and a breakdown of tasks by priority (High, Medium, Low).
+    *   *Right Panel:* Dependency metrics (e.g., number of ready tasks, blocked tasks) and a suggestion for the next task to work on based on priority and readiness.
+*   **Task Table:** A scrollable table listing all tasks with their ID, Title, Status, Priority, and Dependencies.
+*   **Log View (Hidden by default):** A panel at the bottom (toggle with `Ctrl+D`) that shows internal TUI logging messages, useful for debugging.
+*   **Status Bar:** Docked at the very bottom, showing the current time and author information.
+*   **Footer:** Displays the primary key bindings for quick reference.
+
+**Key Features & Bindings:**
+
+*   **Navigation:** Use the `Up`/`Down` arrow keys to navigate through the Task Table.
+*   **Help / Context (`?`):** Press `?` to open a modal screen. This screen displays:
+    *   The full project `context` defined in `PROJECT_PLAN.yaml`.
+    *   A detailed list of all available key bindings.
+    *   Press `Esc` or `Q` to close the Help screen.
+*   **Log Panel:**
+    *   `Ctrl+D`: Toggles the visibility of the Log View panel at the bottom.
+    *   `Ctrl+L`: Copies the entire content of the Log View to your system clipboard (requires `pyperclip` to be functional).
+*   **Command Palette (`Ctrl+P`):** Opens Textual's built-in command palette, allowing access to actions like changing the color theme, toggling dark/light mode, etc.
+*   **Quit (`Q`):** Press `Q` to exit the TUI application.
+
+**File Monitoring:**
+
+The TUI automatically watches the `PROJECT_PLAN.yaml` file. If you modify and save the file while the TUI is running, it will detect the change, reload the data, and refresh the display with the updated information.
+
+## Tutorial: Getting Started & AI Collaboration Workflow 🚀
+
+This tutorial guides you through the entire process of setting up Metsuke for a new project and using it to collaborate effectively with an AI coding assistant.
+
+**1. Get the Code**
+
+First, clone the Metsuke repository (or your project's repository if Metsuke is added as a dependency later):
+```bash
+# Replace with the actual repository URL if different
+git clone https://github.com/your_username/metsuke.git 
+cd metsuke
+```
+
+**2. Setup Environment & Install**
+
+It's highly recommended to use a Python virtual environment.
+(Requires Anaconda or Miniconda installed)
+```bash
+# python -m venv .venv # Old venv command
+# source .venv/bin/activate # On Windows use `.venv\Scripts\activate` # Old venv command
+conda create --name metsuke-env python=3.9 -y # Or choose another Python version >= 3.8
+conda activate metsuke-env
+```
+Install Metsuke in editable mode along with its TUI dependencies:
+```bash
+pip install -e '.[tui]'
+```
+
+**3. Initialize the Plan**
+
+Navigate to your project's root directory (if you cloned Metsuke, you are already there) and run:
+```bash
+metsuke init
+```
+This command:
+*   Checks if a `PROJECT_PLAN.yaml` already exists (and exits if it does).
+*   Attempts to detect your project's name and version from `pyproject.toml` (but uses placeholders in the generated file).
+*   Creates a `PROJECT_PLAN.yaml` file containing:
+    *   Collaboration guidelines (comments at the top).
+    *   Placeholder project metadata (`name: Your Project Name`, `version: '0.1.0'`).
+    *   A default project context section (you should edit this!).
+    *   A list of common starting tasks (you should customize these!).
+
+**Important:** Open the newly created `PROJECT_PLAN.yaml` and customize the `project`, `context`, and initial `tasks` to match your actual project requirements.
+
+**4. Open in AI-Powered Editor**
+
+Open your project folder in an AI-powered code editor that supports direct interaction with an AI assistant, such as Cursor or VS Code with appropriate extensions.
+
+**5. Engage the AI Assistant**
+
+This is a crucial step for enabling effective collaboration.
+You need to **explicitly instruct your AI assistant to use the `PROJECT_PLAN.yaml` file** as the foundation for your work together.
+
+Example prompts:
+
+> *   "Please read the `PROJECT_PLAN.yaml` file to understand the project goals, context, and current tasks."*
+> *   "Let's use `PROJECT_PLAN.yaml` as our single source of truth for planning and tasks."
+> *   "Refer to the tasks and context in `PROJECT_PLAN.yaml` for our development work going forward."
+> *   "I have a `PROJECT_PLAN.yaml` file defining our project. Please make sure you load and reference it."
+
+Ensure the AI acknowledges that it has access to and will use the file. Some advanced AI integrations might detect and use the file automatically, but explicit instruction is the most reliable approach.
+
+**6. Collaborative Workflow Example**
+
+Here's how a typical interaction might look, assuming the AI assistant understands Metsuke and ideally follows a structured protocol (like RIPER-5):
+
+> **You:** "We need a new feature to detect circular dependencies in the plan file itself. Please add this as a new task to `PROJECT_PLAN.yaml`, priority 'medium'."
+>
+> **AI Assistant (using Metsuke):** (Reads `PROJECT_PLAN.yaml`, finds last ID was 5) "Okay, I will add **Task 6: Implement dependency cycle detection**, priority 'medium', depending on Task 2 (Define core data models). Does this plan look good for the description: '**Plan:** 1. Represent task dependencies as a graph. 2. Implement a graph traversal algorithm (e.g., Depth First Search). 3. Detect back edges during traversal which indicate cycles. 4. Report cycles found.'?"
+>
+> **You:** "Yes, that plan looks good. Please add it."
+>
+> **AI Assistant:** (Uses file editing tool) "Okay, I have added Task 6 to `PROJECT_PLAN.yaml`."
+>
+> **You:** "Now, please implement Task 6."
+>
+> **AI Assistant:** "Acknowledged. Entering EXECUTE mode for **Task 6: Implement dependency cycle detection**. Based on the plan, I will first represent dependencies as a graph..." *(Proceeds with implementation, potentially involving further planning/review steps based on its protocol)*
+>
+> *(...Implementation happens...)*
+>
+> **AI Assistant:** "Implementation for Task 6 is complete. **Test Method:** Create a test plan file `PROJECT_PLAN_cycle.yaml` with a known dependency cycle (e.g., Task A depends on B, Task B depends on A). Call the new function `core.detect_cycles('PROJECT_PLAN_cycle.yaml')` and assert that it returns `True`."
+>
+> **You:** *(You run the test)* "Confirmed, the test passes."
+>
+> **You:** "Please mark Task 6 as Done in the plan file."
+>
+> **AI Assistant:** (Uses file editing tool) "Understood. Updating status for Task 6 to 'Done' in `PROJECT_PLAN.yaml`."
+
+**Outcome:**
+
+This workflow, facilitated by Metsuke and a cooperating AI, ensures:
+*   **Clarity:** Both user and AI reference the same plan.
+*   **Traceability:** Changes (like adding Task 6) are reflected in the plan.
+*   **Structure:** Development follows defined tasks and dependencies.
+*   **Verification:** The AI proposes a test method, and the user confirms completion.
+
+This structured approach minimizes misunderstandings and keeps the development process focused and efficient.
 
 ## Development 🛠️
 

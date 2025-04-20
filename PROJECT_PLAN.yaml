@@ -9,6 +9,7 @@
 #   5. Maintain and update the status of each task (pending, in_progress, Done).
 #   6. Refer to these tasks when discussing development steps with you.
 #   7. Request confirmation before executing modifications based on these tasks.
+#   8. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
 # Please keep the context and task list updated to reflect the current project state.
 # -------------------------------------------------------------
 # Defines project metadata and tasks.
@@ -62,7 +63,7 @@ tasks:
     2. Implement a function in `core.py` to load a specified YAML file using `PyYAML`.
     3. Parse the loaded YAML data into the Pydantic models.
     4. Add basic error handling for file not found or YAML parsing errors in `exceptions.py` and `core.py`.
-  status: pending
+  status: Done # Updated status
   priority: high
   dependencies: [ 1 ]
 - id: 3
@@ -73,7 +74,7 @@ tasks:
     2. Add a `show-info` command in `cli.py`.
     3. This command should use `core.py` to load the `PROJECT_PLAN.yaml` (default path).
     4. Display the project name, version, and context loaded from the plan file.
-  status: pending
+  status: Done # Updated status from pending
   priority: medium
   dependencies: [ 2 ]
 - id: 4
@@ -85,7 +86,7 @@ tasks:
     3. Iterate through the `tasks` list from the loaded data.
     4. Display each task's ID, title, and status in a readable format.
     5. Add options to filter tasks (e.g., by status) later.
-  status: pending
+  status: Done # Updated status from pending
   priority: medium
   dependencies: [ 2 ]
 - id: 5
@@ -95,7 +96,7 @@ tasks:
     1. Refine the loading function in `core.py` to be easily usable as a library function (e.g., `load_plan(filepath)` returning the `Project` Pydantic object).
     2. Expose necessary classes/functions (like `load_plan`, `Project`, `Task`, custom exceptions) in `src/metsuke/__init__.py`.
     3. Add basic docstrings explaining how to use the library function.
-  status: pending
+  status: Done # Updated status
   priority: medium
   dependencies: [ 2 ]
 - id: 6
@@ -106,7 +107,7 @@ tasks:
     2. Create a basic test file in `tests/`, e.g., `test_core.py`.
     3. Write a first test case to load the `PROJECT_PLAN.yaml` using the `core.py` function and assert that the project name is correctly parsed.
     4. Configure `pytest` (if needed, e.g., via `pyproject.toml` or `pytest.ini`).
-  status: pending
+  status: Done # Updated status from pending
   priority: low
   dependencies: [ 2, 5 ]
 - id: 7
@@ -116,7 +117,7 @@ tasks:
     1. Enhance the Pydantic models in `models.py` with more specific types and validation rules (e.g., `status` must be one of the allowed values, `dependencies` must be a list of integers).
     2. Ensure the loading function in `core.py` raises validation errors (e.g., `pydantic.ValidationError`) if the YAML file doesn't match the schema.
     3. Update CLI commands (`show-info`, `list-tasks`) to gracefully handle and report validation errors.
-  status: pending
+  status: Done # Updated status from pending
   priority: medium
   dependencies: [ 2 ]
 - id: 8
@@ -136,7 +137,7 @@ tasks:
     2. Create `src/metsuke/tui/__init__.py`.
     3. Refactor the components of `Metsuke.py` into logical modules within `src/metsuke/tui/` (e.g., `app.py`, `widgets.py`, `screens.py`).
     4. Move the CSS definition into `app.py` or a separate `styles.py`.
-  status: pending
+  status: Done # Updated status
   priority: high
   dependencies: [ 1 ] # Depends on base structure
 - id: 10
@@ -148,7 +149,7 @@ tasks:
     3. Import and use `load_plan` function from `src/metsuke/core.py` (requires Task 2/5).
     4. Adapt TUI to use Pydantic models returned by `load_plan`.
     5. Handle `PlanLoadingError` / `PlanValidationError` from `core.py`.
-  status: pending
+  status: Done # Updated status
   priority: high
   dependencies: [ 2, 5, 9 ] # Depends on core loading, API access, and TUI structure
 - id: 11
@@ -160,7 +161,7 @@ tasks:
     3. Instantiate and run `TaskViewer` app.
     4. Add check for optional dependencies (`textual`, `watchdog`, `pyperclip`).
     5. In `src/metsuke/__main__.py`, add `run_tui` as a command to the main `click` group.
-  status: pending
+  status: Done # Updated status
   priority: medium
   dependencies: [ 9, 8 ] # Depends on TUI structure and optional deps being defined
 - id: 12
@@ -171,7 +172,7 @@ tasks:
     2. Ensure logger names are hierarchical (e.g., `metsuke.tui`).
     3. Use an isolated logger for TUI to avoid conflicts.
     4. Ensure `TuiLogHandler` functions correctly.
-  status: pending
+  status: Done # Updated status from pending (verified during research)
   priority: low
   dependencies: [ 9 ] # Depends on TUI structure
 - id: 13
@@ -182,7 +183,7 @@ tasks:
     2. Explain installation (`pip install metsuke[tui]`).
     3. Document the `metsuke tui` command.
     4. Describe TUI features/usage.
-  status: pending
+  status: Done # Updated status from pending
   priority: low
   dependencies: [ 8, 11 ] # Depends on optional deps and CLI command
 - id: 14
@@ -193,7 +194,7 @@ tasks:
     2. Identify the specific widgets or containers causing the gaps.
     3. Adjust Textual CSS or widget parameters in `src/metsuke/tui/` to ensure frames cover the intended area.
     4. Test the fix on different terminal sizes.
-  status: pending
+  status: Done # Addressed code-level adjustments; remaining issues likely terminal-specific.
   priority: low
   dependencies: [ 9 ] # Depends on TUI code structure
 - id: 15
@@ -217,7 +218,7 @@ tasks:
     2. Modify the `update_time` method.
     3. Change `strftime` format to include Year-Month-Day (e.g., `"%Y-%m-%d %H:%M:%S"`).
     4. Adjust layout logic if needed for the longer string.
-  status: pending
+  status: Done # Code change applied during Task 9
   priority: low
   dependencies: [ 9 ] # Depends on TUI code structure
 - id: 17
@@ -241,3 +242,50 @@ tasks:
   status: Done # Task completed
   priority: low
   dependencies: [ 15, 17 ] # Depends on enhanced README content and example
+- id: 19
+  title: Fix TUI Log Handler Threading Issue on Exit
+  description: |
+    **Plan:**
+    1. Open `src/metsuke/tui/handlers.py`.
+    2. Locate the `TuiLogHandler` class and its `emit` method.
+    3. Change `self.log_widget.app.call_from_thread(self.log_widget.write, msg)` to `self.log_widget.write(msg)`.
+  status: Done # Updated status from pending
+  priority: high # Bug fix
+  dependencies: [ 9, 12 ] # Depends on TUI structure and logging setup
+- id: 20
+  title: Restore/Fix Author Info in TUI StatusBar
+  description: |
+    **Plan:**
+    1. Investigate `src/metsuke/tui/widgets.py`, specifically the `StatusBar` class.
+    2. Ensure the author string ("Avocado") is correctly defined and included in the `self.update(...)` call within `update_time`.
+    3. Verify the layout logic correctly positions the author string alongside the time, preventing it from being pushed off-screen or overwritten.
+    4. Check the `StatusBar` integration in `src/metsuke/tui/app.py` (`compose` method) to ensure it's correctly added and displayed.
+  status: Done # Functionality integrated into AppFooter
+  priority: low # Visual refinement
+  dependencies: [ 9 ] # Depends on TUI code structure
+- id: 21
+  title: Remove Redundant Command Palette Hint from HelpScreen
+  description: |
+    **Plan:**
+    1. Modify the `HelpScreen` class definition in `src/metsuke/tui/screens.py`.
+    2. In the `compose` method, locate the `Static` widget displaying key bindings.
+    3. Remove the line `" Ctrl+P : Command Palette"` from the string content of that `Static` widget.
+  status: Done # Redundancy removed by replacing Footer with AppFooter
+  priority: low # UI cleanup
+  dependencies: [ 9 ] # Depends on TUI code structure
+- id: 22
+  title: Implement 'metsuke init' command for initial plan generation
+  description: |
+    **Plan:**
+    1. Add a new `init` command to `src/metsuke/cli.py` and register it in `src/metsuke/__main__.py`.
+    2. Implement logic within the `init` command to check if `PROJECT_PLAN.yaml` already exists. If so, print a warning and exit.
+    3. Add functionality to scan `pyproject.toml` (primarily) and potentially other files (e.g., `.git/config`, `README.md`) for project name and version. Use placeholders if not found.
+    4. Define a default `context` string template.
+    5. Define a default list of initial `Task` templates (e.g., setup, test setup, documentation).
+    6. Construct the full YAML content string using the gathered metadata, default context, and task templates.
+    7. Write the generated YAML content to `PROJECT_PLAN.yaml`.
+    8. Print a confirmation message indicating successful creation.
+    9. (Optional) Add prompts or options to allow the user to confirm/override detected metadata or choose task templates.
+  status: Done # Updated status from pending
+  priority: medium
+  dependencies: [ 3, 4 ] # Depends on basic CLI commands
