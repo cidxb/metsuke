@@ -79,16 +79,11 @@ This example demonstrates how Metsuke provides:
 ## Installation 📦
 
 ```bash
-# Core CLI/Library
+# Core CLI/Library (includes TUI)
 pip install metsuke
-
-# For the Terminal UI (TUI)
-pip install metsuke[tui]
 
 # For development:
 pip install -e .
-# For TUI development:
-pip install -e '.[tui]'
 ```
 
 ## Usage ⌨️
@@ -130,11 +125,7 @@ The Metsuke TUI provides a visual and interactive way to explore the `PROJECT_PL
 
 **Launching the TUI:**
 
-Ensure you have installed the necessary dependencies:
-```bash
-pip install metsuke[tui]
-```
-Then, run the command:
+To launch the TUI, simply run the command:
 ```bash
 metsuke tui
 ```
@@ -190,9 +181,9 @@ It's highly recommended to use a Python virtual environment.
 conda create --name metsuke-env python=3.9 -y # Or choose another Python version >= 3.8
 conda activate metsuke-env
 ```
-Install Metsuke in editable mode along with its TUI dependencies:
+Install Metsuke in editable mode (includes TUI dependencies):
 ```bash
-pip install -e '.[tui]'
+pip install -e .
 ```
 
 **3. Initialize the Plan**

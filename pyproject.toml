@@ -26,6 +26,9 @@ dependencies = [
     "pydantic>=2.0",
     "click>=8.0",
     "toml>=0.10.0",
+    "textual>=0.50.0",
+    "watchdog>=2.0.0",
+    "pyperclip>=1.8.0",
 ]
 
 [project.urls]
@@ -43,11 +46,6 @@ dev = [
     "mypy",
     "black",
     "isort",
-]
-tui = [
-    "textual>=0.50.0",
-    "watchdog>=2.0.0",
-    "pyperclip>=1.8.0",
 ]
 
 # Optional: Add tool configurations if needed

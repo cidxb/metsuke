@@ -185,20 +185,10 @@ Any other relevant context for the AI assistant.
 @click.command("tui")
 # TODO: Add option for plan file path: @click.option("--plan", default="PROJECT_PLAN.yaml", type=click.Path(exists=False, path_type=pathlib.Path))
 def run_tui():
-    """Launch the Textual TUI interface (requires TUI dependencies)."""
-    tui_deps = ["textual", "watchdog", "pyperclip"]
-    missing_deps = []
-    for dep in tui_deps:
-        spec = importlib.util.find_spec(dep)
-        if spec is None:
-            missing_deps.append(dep)
-
-    if missing_deps:
-        click.echo(f"Error: Missing TUI dependencies: {', '.join(missing_deps)}", err=True)
-        click.echo("Please install them using: pip install metsuke[tui]", err=True)
-        sys.exit(1)
-
-    # Import TUI app only after checking dependencies
+    """Launch the Textual TUI interface."""
+    # Removed dependency check block - TUI deps are now core
+    
+    # Import TUI app 
     try:
         from .tui.app import TaskViewer
     except ImportError as e:
