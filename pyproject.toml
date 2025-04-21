@@ -6,12 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "metsuke"
 version = "0.1.0"
 authors = [
-  # { name="Your Name", email="you@example.com" }, # TODO: Add author details
+  # { name="Liang,Yi", email="cidxbx@gmail.com" }, 
 ]
 description = "AI-Assisted Development Task Manager using YAML plans."
 readme = "README.md"
-license = { file="LICENSE" }
-requires-python = ">=3.8"
+license = "Apache License 2.0"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
@@ -32,8 +32,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/your_username/metsuke" # TODO: Update URL
-"Bug Tracker" = "https://github.com/your_username/metsuke/issues" # TODO: Update URL
+"Homepage" = "https://github.com/cidxb/metsuke" # TODO: Update URL
+"Bug Tracker" = "https://github.com/cidxb/metsuke/issues" # TODO: Update URL
 
 [project.scripts]
 metsuke = "metsuke.__main__:main"
