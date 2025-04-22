@@ -1,5 +1,7 @@
 # Metsuke ✨
 
+![Metsuke Logo](metsuke_logo.jpg)
+
 **Metsuke (目つけ): AI-Assisted Development Task Manager**
 
 The name "Metsuke" comes from Japanese, often translated as "gaze" or "looking". However, in disciplines like martial arts (Budo), it signifies much more than just physical sight. Metsuke refers to the *correct way of seeing* – encompassing not just *what* you look at, but *how* you perceive the whole situation, maintain focus, anticipate movement, and understand intent without being fixated on minor details. It implies focused awareness and comprehensive perception.
