@@ -30,20 +30,20 @@ project_version_placeholder = "0.1.0" # Placeholder for template
 collaboration_guide_template = f"""\
 # {DEFAULT_PLAN_FILENAME_FOR_TEMPLATE} - {project_name_placeholder} Project
 # -------------------- Collaboration Usage --------------------
-# This file (or one of the files in the 'plans/' directory if using multi-plan mode)
-# serves as the primary planning and tracking document for {project_name_placeholder}.
+# This file serves as the primary planning and tracking document for {project_name_placeholder}.
 # AI assistants should primarily interact with the plan file where 'focus: true' is set.
-# 
-# As the AI assistant, I will:
-#   1. Analyze the project goals and context described herein (focusing on the 'focus: true' plan).
-#   2. Decompose high-level plans into specific, actionable tasks listed below.
-#   3. Ensure tasks are broken down into fine-grained steps.
-#   4. Write detailed descriptions for each task, including the specific plan/steps.
-#   5. Maintain and update the status of each task (pending, in_progress, Done).
-#   6. Automatically record the 'completion_date' when a task is marked 'Done'.
-#   7. Refer to these tasks when discussing development steps with you.
-#   8. Request confirmation before executing modifications based on these tasks.
-#   9. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
+#
+# As the AI assistant, I will adhere to the following process for planning:
+#   1. Engage in an initial discussion phase (e.g., INNOVATE mode) to fully understand project goals, context, and constraints before modifying this plan.
+#   2. Summarize key discussion points, decisions, and rationale in a designated document (e.g., `docs/discussion_log.md`) for transparency and future reference.
+#   3. Propose an initial, high-level task breakdown in this file (PLAN mode).
+#   4. Based on user feedback, iteratively refine and decompose tasks into more specific, granular, and actionable steps until the plan is sufficiently detailed for execution.
+#   5. Ensure each task has a clear description, status, priority, and dependencies correctly mapped.
+#   6. Maintain and update the status of each task (pending, in_progress, Done).
+#   7. Automatically record the 'completion_date' when a task is marked 'Done'.
+#   8. Refer to these tasks when discussing development steps with you.
+#   9. Request explicit confirmation (e.g., "ENTER EXECUTE MODE" or similar) before starting the implementation of any task described herein. Upon receiving confirmation, immediately update the task status to `in_progress` before proceeding.
+#  10. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
 # Please keep the context and task list updated to reflect the current project state.
 # The 'focus: true' flag indicates the currently active plan for AI interaction.
 # -------------------------------------------------------------
