@@ -3,41 +3,121 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Any, List, Tuple
+from typing import Dict, Optional, Any, List, Tuple, Union
 from collections import Counter
+from pathlib import Path # Import Path
 
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.widgets import Static, ProgressBar
-from textual.reactive import var
+from textual.reactive import reactive, var
+from textual.binding import Binding
+from rich.text import Text
+from rich.panel import Panel
 
 # Import Pydantic models from the core package
 # Assuming models.py is one level up from tui directory
 # Adjust relative path if needed
 from ..models import ProjectMeta, Task # Import Task as well
 
+# Import utility functions if needed (e.g., for colors)
+# from ..utils import _get_status_color # Assuming utils exist or define locally
 
 # --- UI Components --- Note: TypedDicts for data are now in models.py
 
+# --- Title Widget ---
 class TitleDisplay(Static):
-    """Displays the main title."""
-    def render(self) -> str:
-        return "[b cyan]Metsuke[/]"
+    """A widget to display the application title."""
 
+    title_text: reactive[str] = reactive("[b cyan]Metsuke[/]") # Default title
+    author_name: str = "Liang,Yi <cidxb@github.com>" # Updated author name
 
+    def render(self) -> Text:
+        """Render the title and author with specific alignment."""
+        width = self.size.width
+
+        # Define the text components with styles
+        # Using $accent for title, dim italic for author
+        title = Text("Metsuke", style="b cyan")
+        author = Text(f"by {self.author_name}", style="dim i")
+
+        # Calculate padding
+        title_len = len(title)
+        author_len = len(author)
+
+        if width < title_len + author_len + 1: # Not enough space
+            # Just center the title if space is tight
+            return Text("Metsuke", style="b cyan", justify="center")
+
+        # Calculate padding for center/right alignment
+        left_padding_len = (width - title_len) // 2
+        mid_padding_len = width - left_padding_len - title_len - author_len
+
+        # Assemble the final text
+        return Text.assemble(
+            (" " * left_padding_len), # Left padding for title centering
+            title,
+            (" " * mid_padding_len), # Middle padding
+            author,
+        )
+
+    def update(self, new_title: str) -> None:
+        """Update the displayed title."""
+        self.title_text = new_title
+
+# --- Project Info Widget ---
 class ProjectInfo(Static):
-    """Displays project metadata."""
+    """Displays project metadata with enhanced styling."""
 
-    meta: var[Optional[ProjectMeta]] = var(None)
+    # Removed reactive variables, state is now passed directly to _render_display
 
-    def watch_meta(self, meta: Optional[ProjectMeta]) -> None:
-        if meta:
-            # Use attribute access for Pydantic models
-            self.update(
-                f"Version: [b]{meta.version}[/] Project: [b]{meta.name}[/]{f' License: {meta.license}' if meta.license else ''}"
-            )
+    # Modified _render_display to accept arguments directly
+    def _render_display(self, project: Optional[ProjectMeta], plan_path: Optional[Path]) -> None:
+        """Updates the renderable content based on current state."""
+        # --- Debug Logging Start ---
+        # Log the arguments passed in
+        logging.getLogger(__name__).debug(f"_render_display called with: project={project!r}, plan_path={plan_path!r}")
+        # --- Debug Logging End ---
+        if project: # Use the passed argument
+            try:
+                # Display path relative to CWD if possible
+                display_path = str(plan_path.relative_to(Path.cwd()))
+            except (ValueError, AttributeError):
+                # Fallback to just the filename or N/A
+                display_path = plan_path.name if plan_path else "[i]N/A[/i]"
+
+            # Use theme variable $accent for project name
+            # Use dim or $text-muted for version and path
+            name_style = "b cyan"
+            version_style = ""
+            path_style = "dim blue"
+            license_style = "dim"
+
+            # Construct line by line for better control
+            # Avoid empty style tag if version_style is empty
+            version_part = f"[{version_style}]{project.version}[/]" if version_style else project.version
+            line1 = f"[{name_style}]{project.name}[/] ({version_part})"
+            line2 = f"[{path_style}]{display_path}[/]"
+            info_text = f"{line1}\n{line2}"
+            if project.license: # Add license on a new line if present
+                info_text += f"\n[{license_style}]License: {project.license}[/]"
+            # Use Text object for centering
+            logging.getLogger(__name__).debug(f"Generated info_text: {info_text!r}")
+            self.update(Text.from_markup(info_text, justify="center"))
+            logging.getLogger(__name__).debug("ProjectInfo update call completed within if.")
         else:
-            self.update("Version: N/A Project: N/A")
+            # Handle error loading or no plan loaded
+            error_text = "[b red]No Plan Loaded[/]"
+            if plan_path: # Show path if available even on load error
+                try:
+                    display_path = str(plan_path.relative_to(Path.cwd()))
+                except (ValueError, AttributeError):
+                    display_path = plan_path.name
+                error_text = f"[b red]Error loading:[/] [{path_style}]{display_path}[/]"
+            # Use Text object for centering
+            logging.getLogger(__name__).debug(f"Generated error_text: {error_text!r}")
+            self.update(Text.from_markup(error_text, justify="center"))
+            logging.getLogger(__name__).debug("ProjectInfo update call completed within else.")
 
 
 class TaskProgress(Container):
@@ -45,6 +125,15 @@ class TaskProgress(Container):
 
     progress_percent: var[float] = var(0.0)
     counts: var[Dict[str, int]] = var(Counter())
+
+    # Helper to get status colors (can be moved to a utility module later)
+    def _get_status_color(self, status: str) -> str:
+        return {
+            "Done": "green",       # Standard Rich color
+            "in_progress": "yellow", # Standard Rich color
+            "pending": "blue",       # Standard Rich color
+            "blocked": "red",        # Standard Rich color
+        }.get(status.lower(), "$text") # Default to standard text
 
     def compose(self) -> ComposeResult:
         yield Static("", id="progress-text")
@@ -98,6 +187,14 @@ class DependencyStatus(Static):
     metrics: var[Dict[str, Any]] = var({}) # Holds calculated metrics
     # Removed direct task_list var
 
+    # Helper to get priority colors (can be moved later)
+    def _get_priority_color(self, priority: str) -> str:
+        return {
+            "high": "red",    # Standard Rich color
+            "medium": "yellow", # Standard Rich color
+            "low": "green",   # Standard Rich color
+        }.get(priority.lower(), "$text")
+
     def update_metrics(self, metrics: Dict[str, Any]) -> None:
         """Updates the widget with pre-calculated dependency metrics."""
         logging.getLogger(__name__).info(f"DependencyStatus received metrics: {metrics}")
@@ -134,6 +231,9 @@ class DependencyStatus(Static):
 class AppFooter(Container):
     """A custom footer that displays bindings and dynamic info."""
 
+    # Add state for the current plan path
+    current_plan_path: var[Optional[Path]] = var(None)
+
     DEFAULT_CSS = """
     /* Using App CSS for layout */
     AppFooter > #footer-bindings {
@@ -144,10 +244,24 @@ class AppFooter(Container):
     }
     """
 
-    def __init__(self, bindings: List[Tuple[str, str, str]], **kwargs):
+    def __init__(self, bindings: List[Any], **kwargs):
         super().__init__(**kwargs)
         # Store only the relevant parts for display (key, description)
-        self._bindings_data = [(key, desc) for key, _, desc in bindings]
+        self._bindings_data = []
+        for item in bindings:
+             # Handle Binding objects
+             if isinstance(item, Binding):
+                  if item.show: # Only process bindings marked to be shown
+                       key_display = item.key_display if item.key_display else item.key
+                       self._bindings_data.append((key_display, item.description))
+             # Handle tuple format (assuming 3 elements: key, action, description)
+             elif isinstance(item, tuple) and len(item) == 3:
+                  key, _, desc = item
+                  # Assuming all tuples passed are meant to be shown
+                  self._bindings_data.append((key, desc))
+             # Optional: Log or ignore other types
+             # else:
+             #    self.log.warning(f"Ignoring unknown item type in AppFooter bindings: {type(item)}")
 
     def compose(self) -> ComposeResult:
         yield Static(id="footer-bindings")
@@ -156,22 +270,35 @@ class AppFooter(Container):
     def on_mount(self) -> None:
         """Called when the footer is mounted."""
         self._update_bindings()
-        self._update_info() # Initial update
-        self.set_interval(1, self._update_info) # Update info every second
+        self.update_info() # Initial update
+        self.set_interval(1, self.update_info) # Update info every second
 
     def _update_bindings(self) -> None:
         """Formats and displays the key bindings."""
         b = self.query_one("#footer-bindings", Static)
         # Format bindings similar to Textual's default Footer
-        bindings_text = " | ".join(f"[dim]{key}[/]:{desc}" for key, desc in self._bindings_data) # Removed space for brevity
+        bindings_text = " | ".join(f"[dim]{key}[/]:{desc}" for key, desc in self._bindings_data if desc) # Filter out bindings without description if necessary
         b.update(bindings_text)
 
-    def _update_info(self) -> None:
-        """Updates the time and author information."""
+    # Rename to update_info to match app.py call
+    def update_info(self) -> None:
+        """Updates the time and current plan path information."""
         info_widget = self.query_one("#footer-info", Static)
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        author = "Author: Liang,Yi" # Shortened for space
 
-        # Let App CSS handle alignment
-        info_text = f"{now_str} | {author}"
+        # Display current plan path
+        plan_str = "Plan: N/A"
+        if self.current_plan_path:
+            try:
+                # Try to show relative path for brevity
+                plan_str = f"Plan: {self.current_plan_path.relative_to(Path.cwd())}"
+            except ValueError:
+                plan_str = f"Plan: {self.current_plan_path.name}"
+
+        # Combine time and plan path
+        info_text = f"{now_str} | {plan_str}"
         info_widget.update(info_text) 
+
+    # Add watch method for the new reactive variable
+    def watch_current_plan_path(self, new_path: Optional[Path]) -> None:
+         self.update_info() # Trigger update when path changes 

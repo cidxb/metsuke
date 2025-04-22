@@ -5,6 +5,7 @@
 # but using Pydantic model instances (.project.name etc.) is recommended.
 
 from typing import List, Optional, TypedDict, Literal
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 
@@ -17,6 +18,7 @@ class Task(BaseModel):
     status: Literal['pending', 'in_progress', 'Done', 'blocked']
     priority: Literal['low', 'medium', 'high']
     dependencies: List[int] = Field(default_factory=list)
+    completion_date: Optional[datetime] = None
 
 
 class ProjectMeta(BaseModel):
@@ -29,6 +31,7 @@ class Project(BaseModel):
     project: ProjectMeta
     context: Optional[str] = None
     tasks: List[Task] = Field(default_factory=list)
+    focus: bool = False
 
 
 # --- TypedDict Definitions (Mirroring Pydantic for TUI type hints if needed) ---

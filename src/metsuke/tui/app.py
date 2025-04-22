@@ -2,22 +2,28 @@
 """Main Textual application class for the Metsuke TUI."""
 
 import logging
+
 # import yaml # Will be removed when Task 10 is done
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Type
 from collections import Counter
 
 # Conditional imports (ensure these are handled in handlers.py/screens.py)
 try:
-    from watchdog.observers import Observer # type: ignore
+    from watchdog.observers import Observer  # type: ignore
+
     _WATCHDOG_AVAILABLE = True
 except ImportError:
     _WATCHDOG_AVAILABLE = False
-    class Observer: pass # Dummy
+
+    class Observer:
+        pass  # Dummy
+
 
 try:
-    import pyperclip # type: ignore
+    import pyperclip  # type: ignore
+
     _PYPERCLIP_AVAILABLE = True
 except ImportError:
     _PYPERCLIP_AVAILABLE = False
@@ -26,18 +32,32 @@ from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll, Horizontal
 from textual.widgets import Header, Static, DataTable, ProgressBar, Log, Markdown
 from textual.reactive import var
-# from textual.screen import ModalScreen # Imported in screens.py
+from textual.screen import Screen
+from textual.binding import Binding
+from textual import events  # Added import
+from rich.text import Text  # Added import for plan selection table
 
 # Import from our TUI modules
 from .widgets import (
-    TitleDisplay, ProjectInfo, TaskProgress,
-    PriorityBreakdown, DependencyStatus, AppFooter
+    TitleDisplay,
+    ProjectInfo,
+    TaskProgress,
+    PriorityBreakdown,
+    DependencyStatus,
+    AppFooter,
 )
-from .screens import HelpScreen
-from .handlers import TuiLogHandler, PlanFileEventHandler, _WATCHDOG_AVAILABLE as _HANDLER_WATCHDOG # Use flag from handler
-from ..models import Project, Task, ProjectMeta # Import Pydantic models
-from ..core import load_plan # Will be used in Task 10
-from ..exceptions import PlanLoadingError, PlanValidationError # Will be used in Task 10
+from .screens import HelpScreen  # Only HelpScreen needed now
+from .handlers import (
+    TuiLogHandler,
+    DirectoryEventHandler,
+    _WATCHDOG_AVAILABLE as _HANDLER_WATCHDOG,
+)  # Use new handler
+from ..models import Project, Task, ProjectMeta  # Import Pydantic models
+from ..core import load_plans, manage_focus, save_plan  # Import new core functions
+from ..exceptions import (
+    PlanLoadingError,
+    PlanValidationError,
+)  # Will be used in Task 10
 
 # PLAN_FILE = Path("PROJECT_PLAN.yaml") # Define this where TUI is launched or pass as arg
 
@@ -49,7 +69,7 @@ class TaskViewer(App):
     CSS = """
     Screen {
         background: $surface;
-        color: $text;
+        color: $text; /* Default text color */
         layout: vertical;
     }
     TitleDisplay {
@@ -57,6 +77,7 @@ class TaskViewer(App):
         text-align: center;
         height: auto;
         margin-bottom: 1; /* Restored margin */
+        color: $primary; /* Apply primary color to title, author part overridden by [dim] */
     }
     ProjectInfo {
         width: 100%;
@@ -92,6 +113,11 @@ class TaskViewer(App):
     #task-table {
         height: 1fr;
         border: thick $accent; /* Restored border */
+    }
+    #plan-selection-table {
+        height: 1fr; /* Occupy available space like task-table */
+        border: thick $accent;
+        display: none; /* Hide by default */
     }
     /* Styles for widgets inside panels */
     TaskProgress {
@@ -156,33 +182,56 @@ class TaskViewer(App):
 
     # Bindings moved from Metsuke.py
     BINDINGS = [
-        ("q", "quit", "Quit"),
+        # Add back 'q' for quitting, along with Ctrl+C
+        Binding("q", "quit", "Quit", show=True, priority=True), # Added back, NOW VISIBLE
+        Binding(
+            "ctrl+c", "quit", "Quit", priority=True, show=True
+        ),  # Kept Ctrl+C as visible primary
         ("ctrl+l", "copy_log", "Copy Log"),
         ("ctrl+d", "toggle_log", "Toggle Log"),
-        ("ctrl+p", "command_palette", "Palette"), # Enable command palette
-        ("?", "show_help", "Help")
+        ("ctrl+b", "open_plan_selection", "Select Plan"),  # Changed description
+        ("ctrl+p", "command_palette", "Palette"),  # Enable command palette
+        ("?", "show_help", "Help"),
+        # Add new bindings for arrow keys (not shown in help, but used for switching)
+        Binding("left", "previous_plan", "Prev Plan", show=False, priority=True),
+        Binding("right", "next_plan", "Next Plan", show=False, priority=True),
+        # Add other app-level bindings here (e.g., task manipulation later)
     ]
 
     # Reactive variables moved from Metsuke.py
-    # plan_data: var[Optional[PlanData]] = var(None, init=False) # OLD TypedDict version
-    plan_data: var[Optional[Project]] = var(None, init=False) # NEW Pydantic version (used after Task 10)
-    plan_context: var[str] = var("")
+    plan_data: var[Optional[Project]] = var(
+        None, init=False
+    )  # Keep for now, may remove if unused
+    plan_context: var[str] = var("")  # Keep for HelpScreen
     last_load_time: var[Optional[datetime]] = var(None, init=False)
     observer: var[Optional[Observer]] = var(None, init=False)  # Store observer
-    plan_file_path: Path # To be set on init
+    # --- New reactive variables for managing multiple plans ---
+    all_plans: var[Dict[Path, Optional[Project]]] = var({}, init=False)
+    current_plan_path: var[Optional[Path]] = var(None, init=False)
+    initial_plan_files: List[Path]
+    # --- New state for plan selection view ---
+    selecting_plan: var[bool] = var(False, init=False)
+    # --- End new reactive variables ---
 
     # Class logger for the App itself
-    # Use hierarchical naming
-    app_logger = logging.getLogger("metsuke.tui.app") # Updated logger name
+    app_logger = logging.getLogger("metsuke.tui.app")
 
     # Store handler for copy action
     tui_handler: Optional[TuiLogHandler] = None
 
-    # Initialize with the path to the plan file
-    def __init__(self, plan_file: Path = Path("PROJECT_PLAN.yaml")):
+    # --- Modified __init__ ---
+    def __init__(self, plan_files: List[Path]):
         super().__init__()
-        self.plan_file_path = plan_file
-        self._load_data()  # Load data on initialization
+        if not plan_files:
+            # This should ideally be caught in cli.py, but double-check
+            raise ValueError(
+                "TaskViewer must be initialized with at least one plan file path."
+            )
+        self.initial_plan_files = plan_files
+        # Removed _load_data() call - initial loading happens in on_mount
+        self.app_logger.info(
+            f"TUI initialized with {len(plan_files)} potential plan file(s)."
+        )
 
     def compose(self) -> ComposeResult:
         # yield Header() # Removed Header widget for now
@@ -196,6 +245,7 @@ class TaskViewer(App):
                 with VerticalScroll(id="right-panel"):
                     yield DependencyStatus(id="dependency-status")
             yield DataTable(id="task-table")
+            yield DataTable(id="plan-selection-table")  # Add plan selection table
         yield Log(id="log-view", max_lines=200, highlight=True)
         yield AppFooter(bindings=self.BINDINGS, id="app-footer")
 
@@ -204,22 +254,30 @@ class TaskViewer(App):
         # Setup TUI logging handler
         log_widget = self.query_one(Log)
         self.tui_handler = TuiLogHandler(log_widget)
-        formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(name)s: %(message)s\n', datefmt='%H:%M:%S')
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-8s %(name)s: %(message)s\n", datefmt="%H:%M:%S"
+        )
         self.tui_handler.setFormatter(formatter)
 
         # Configure metsuke.tui logger (don't configure root logger from here)
         tui_logger = logging.getLogger("metsuke.tui")
-        tui_logger.setLevel(logging.INFO) # Set level for TUI logs
+        tui_logger.setLevel(logging.DEBUG) # Set level to DEBUG to see detailed logs
         # Avoid adding handler if already added (e.g., if app restarts)
         if self.tui_handler not in tui_logger.handlers:
              tui_logger.addHandler(self.tui_handler)
-        tui_logger.propagate = False # Don't pass logs up to root
+        tui_logger.propagate = False  # Don't pass logs up to root
 
         self.app_logger.info("TUI Log Handler configured. Press Ctrl+L to copy log.")
 
-        self.update_ui()
+        # Load initial data and determine focus (This calls update_ui internally)
+        self._initial_load_and_focus()  # Corrected call
+
+        # Start file observer AFTER initial load
         self.start_file_observer()
-        self.query_one(DataTable).focus()
+
+        # Focus the task table initially (if not selecting plan)
+        if not self.selecting_plan:
+            self.query_one("#task-table").focus()
 
     def on_unmount(self) -> None:
         """Called when the app is unmounted."""
@@ -231,134 +289,345 @@ class TaskViewer(App):
             self.tui_handler = None
 
     def start_file_observer(self) -> None:
-        """Starts the watchdog file observer."""
+        """Starts the watchdog file observer based on loaded plans."""
         if not _HANDLER_WATCHDOG:
-             self.app_logger.warning("Watchdog not installed. File changes will not be detected.")
-             return
-        if not self.plan_file_path.exists():
-            self.app_logger.warning(f"Cannot watch {self.plan_file_path} - file does not exist.")
+            self.app_logger.warning(
+                "Watchdog not installed. File changes will not be automatically detected."
+            )
+            return
+        if not self.initial_plan_files:
+            self.app_logger.warning(
+                "No initial plan files found, cannot start observer."
+            )
             return
 
-        event_handler = PlanFileEventHandler(self, self.plan_file_path)
+        # Determine watch path and pattern
+        first_plan_path = self.initial_plan_files[0]
+        watch_path: Path
+        file_pattern: str
+
+        # Check if we are in multi-plan mode (plans/ dir exists and was used)
+        # TODO: Get plans dir name and pattern from core constants?
+        from ..core import PLANS_DIR_NAME, PLAN_FILE_PATTERN, DEFAULT_PLAN_FILENAME
+
+        plans_dir = Path.cwd() / PLANS_DIR_NAME
+        is_multi_mode = plans_dir.is_dir() and any(
+            f.parent == plans_dir for f in self.initial_plan_files
+        )
+
+        if is_multi_mode:
+            watch_path = plans_dir
+            file_pattern = PLAN_FILE_PATTERN
+            self.app_logger.info(
+                f"Starting observer in multi-plan mode for directory: {watch_path}"
+            )
+        else:
+            # Single file mode (either root PROJECT_PLAN.yaml or explicitly specified file)
+            watch_path = first_plan_path.parent
+            file_pattern = first_plan_path.name  # Watch only the specific file
+            self.app_logger.info(
+                f"Starting observer in single-plan mode for file: {first_plan_path}"
+            )
+
+        if not watch_path.exists():
+            self.app_logger.error(
+                f"Cannot start observer: Watch path does not exist: {watch_path}"
+            )
+            return
+
+        event_handler = DirectoryEventHandler(self, watch_path, file_pattern)
         self.observer = Observer()
-        watch_path = str(self.plan_file_path.parent.resolve())
         try:
-            self.observer.schedule(event_handler, watch_path, recursive=False)
+            # Watch the determined directory (non-recursive for simplicity)
+            self.observer.schedule(
+                event_handler, str(watch_path.resolve()), recursive=False
+            )
             self.observer.daemon = True
             self.observer.start()
-            self.app_logger.info(f"Started watching {watch_path} for changes to {self.plan_file_path.name}")
+            self.app_logger.info(
+                f"Observer started watching {watch_path.resolve()} for pattern '{file_pattern}'"
+            )
         except Exception as e:
-            self.app_logger.error(f"Failed to start file observer: {e}")
-            self.observer = None
-
+            self.app_logger.exception(f"Failed to start file observer for {watch_path}")
+            self.observer = None  # Ensure observer is None if start fails
 
     def stop_file_observer(self) -> None:
         """Stops the watchdog file observer."""
         if self.observer and self.observer.is_alive():
             try:
                 self.observer.stop()
-                self.observer.join()
-                self.app_logger.info("Stopped file observer.")
+                # Wait for the observer thread to finish
+                self.observer.join(timeout=1.0)  # Add a timeout
+                if self.observer.is_alive():
+                    self.app_logger.warning("Observer thread did not join cleanly.")
+                else:
+                    self.app_logger.info("Stopped file observer.")
             except Exception as e:
-                self.app_logger.error(f"Error stopping file observer: {e}")
-        self.observer = None
+                self.app_logger.exception("Error stopping file observer")
+        self.observer = None  # Clear observer reference
 
-    def reload_plan_data(self) -> None:
-        """Reloads data and updates UI (called from watchdog thread via call_from_thread)."""
-        self.app_logger.info("Reloading plan data due to file change...")
-        self._load_data()
-        self.update_ui()
+    def handle_file_change(self, event_type: str, path: Path) -> None:
+        """Callback for file changes detected by the handler."""
+        self.app_logger.info(
+            f"Handling file change event: {event_type} for {path.name}"
+        )
+        path = path.resolve()  # Ensure absolute path
 
-    # TODO: Task 10 - Refactor this method to use core.load_plan
-    def _load_data(self) -> None:
-        """Loads data using the core load_plan function."""
-        try:
-            self.plan_data = load_plan(self.plan_file_path)
-            self.plan_context = self.plan_data.context or ""
+        needs_focus_check = False
+        needs_ui_update = False
+
+        current_plans = self.all_plans.copy()  # Work on a copy
+
+        if event_type == "modified":
+            if path not in current_plans:
+                self.app_logger.warning(
+                    f"Modified event for untracked file: {path}. Ignoring."
+                )
+                return
+
+            self.app_logger.info(f"Reloading modified plan: {path.name}")
+            # Reload the single modified plan
+            reloaded_plan_dict = load_plans([path])
+            reloaded_plan = reloaded_plan_dict.get(path)  # Can be None if load fails
+
+            # Check if load status changed or content actually changed
+            if (
+                current_plans.get(path) != reloaded_plan
+            ):  # Basic check, might need deep compare
+                current_plans[path] = reloaded_plan
+                self.last_load_time = datetime.now()
+                self.notify(f"Plan '{path.name}' reloaded.")
+                if path == self.current_plan_path:
+                    needs_ui_update = True
+                # If the focus status changed in the file, we need to re-evaluate
+                # Check if plan exists before accessing focus
+                old_plan_focus = self.all_plans.get(path) and self.all_plans[path].focus
+                new_plan_focus = current_plans.get(path) and current_plans[path].focus
+                if new_plan_focus != old_plan_focus:
+                    needs_focus_check = True
+            else:
+                self.app_logger.info(
+                    f"Plan '{path.name}' reloaded, but content appears unchanged."
+                )
+
+        elif event_type == "created":
+            if path in current_plans:
+                self.app_logger.warning(
+                    f"Created event for already tracked file: {path}. Reloading."
+                )
+                # Treat as modification
+                reloaded_plan_dict = load_plans([path])
+                current_plans[path] = reloaded_plan_dict.get(path)
+            else:
+                self.app_logger.info(f"Loading newly created plan: {path.name}")
+                new_plan_dict = load_plans([path])
+                current_plans[path] = new_plan_dict.get(
+                    path
+                )  # Add the new plan (or None if load failed)
+
             self.last_load_time = datetime.now()
-            self.app_logger.info(f"Plan data loaded successfully using core.load_plan for {self.plan_file_path}")
+            self.notify(f"New plan '{path.name}' detected.")
+            # New plan might require focus check if it has focus: true
+            if current_plans.get(path) and current_plans[path].focus:
+                needs_focus_check = True
+            # UI update needed if the plan list changes (for PlanSelectionScreen)
+            # needs_ui_update = True # Maybe not needed immediately?
 
-        except (PlanLoadingError, PlanValidationError) as e:
-            self.app_logger.error(f"Failed to load or validate plan file: {e}")
-            self.notify(f"Error: {e}", title="Plan Load Error", severity="error")
-            self.plan_data = None
-            self.plan_context = ""
-        except Exception as e:
-            # Catch any other unexpected errors during loading
-            self.app_logger.exception(f"Unexpected error in _load_data: {e}") # Use exception logger
-            self.notify(f"Unexpected error loading plan: {e}", title="Load Error", severity="error")
-            self.plan_data = None
-            self.plan_context = ""
+        elif event_type == "deleted":
+            if path not in current_plans:
+                self.app_logger.warning(
+                    f"Deleted event for untracked file: {path}. Ignoring."
+                )
+                return
 
-    # TODO: Task 10 - Update this method to work with Project Pydantic object
-    def update_ui(self) -> None:
-        """Updates all UI components with the latest data."""
-        self.app_logger.info("Updating UI...")
-        if not self.plan_data: # Check if Project object is None
-            self.app_logger.warning("No plan data object found, clearing UI.")
-            self.query_one(ProjectInfo).meta = None
-            table = self.query_one(DataTable)
-            table.clear(columns=True)
-            table.add_columns("ID", "Title", "Status", "Priority", "Dependencies")
-            table.add_row("[i]No data loaded. Check PROJECT_PLAN.yaml[/i]", span=5)
-            # Clear stats
-            try:
-                self.query_one(TaskProgress).update_progress(Counter(), 0.0)
-                self.query_one(PriorityBreakdown).priority_counts = Counter()
-                self.query_one(DependencyStatus).update_metrics({}) # Use update method
-            except Exception as e:
-                self.app_logger.error(f"Error clearing stats widgets: {e}")
-            return
+            self.app_logger.info(f"Removing deleted plan: {path.name}")
+            was_focused = path == self.current_plan_path
+            del current_plans[path]
+            self.notify(f"Plan '{path.name}' removed.")
 
-        # Access data via Pydantic model attributes
-        project_meta = self.plan_data.project
-        tasks = self.plan_data.tasks # List[Task]
+            if was_focused:
+                self.app_logger.warning("The focused plan was deleted!")
+                self.current_plan_path = None  # Clear current focus path immediately
+                needs_focus_check = True  # Need to find a new focus
+                needs_ui_update = True  # UI needs to reflect loss of focus
 
-        self.query_one(ProjectInfo).meta = project_meta
+        # Update the main state variable
+        self.all_plans = current_plans
 
-        table = self.query_one(DataTable)
-        table.clear(columns=True)
-        table.add_columns("ID", "Title", "Status", "Priority", "Dependencies")
-        table.fixed_columns = 1
-        table.cursor_type = "row"
-        for task in tasks: # task is now a Task Pydantic object
-            deps_str = ", ".join(map(str, task.dependencies)) or "None"
-            status_styled = f"[{self._get_status_color(task.status)}]{task.status}[/]"
-            priority_styled = f"[{self._get_priority_color(task.priority)}]{task.priority}[/]"
-            table.add_row(
-                str(task.id),
-                task.title,
-                status_styled,
-                priority_styled,
-                deps_str,
-                key=str(task.id),
+        # Perform focus check if needed (this might save files)
+        if needs_focus_check:
+            self.app_logger.info("Re-evaluating focus due to file change...")
+            updated_plans, new_focus_path = manage_focus(self.all_plans)
+            self.all_plans = (
+                updated_plans  # Update state again after manage_focus saves
             )
+            if new_focus_path != self.current_plan_path:
+                # Check if focus path actually exists before assigning
+                if new_focus_path is None and len(self.all_plans) > 0:
+                    # This case shouldn't happen if manage_focus works correctly, but handle defensively
+                    self.app_logger.error(
+                        "manage_focus returned None focus path despite valid plans existing!"
+                    )
+                    # Maybe try to pick one manually?
+                    # For now, log error and potentially leave focus as None
+                elif new_focus_path is not None:
+                    self.app_logger.info(
+                        f"Focus changed to {new_focus_path.name} after file event."
+                    )
+                    self.current_plan_path = new_focus_path
+                    needs_ui_update = True  # Focus changed, update UI
+                else:  # new_focus_path is None and no plans left
+                    self.app_logger.info(
+                        "No valid plans left after file event, focus is None."
+                    )
+                    self.current_plan_path = None
+                    needs_ui_update = True  # UI should show no plan
 
-        if tasks:
-            total_tasks = len(tasks)
-            status_counts = Counter(t.status for t in tasks)
-            priority_counts = Counter(t.priority for t in tasks)
-            done_count = status_counts.get("Done", 0)
-            progress_percent = (done_count / total_tasks) * 100 if total_tasks > 0 else 0
+        # Update UI if required
+        if needs_ui_update:
+            self.update_ui()
+            # If we were selecting a plan and the list changed, refresh the selection table
+            if self.selecting_plan:
+                self._populate_plan_selection_table()
+                # Try to keep focus on the selection table
+                try:
+                    self.query_one("#plan-selection-table").focus()
+                except Exception:
+                    self.app_logger.error(
+                        "Failed to refocus plan selection table after file change."
+                    )
+            else:
+                # Ensure focus is back on task table if not selecting
+                try:
+                    self.query_one("#task-table").focus()
+                except Exception:
+                    self.app_logger.error(
+                        "Failed to refocus task table after file change."
+                    )
 
-            self.app_logger.info(f"Calculated status_counts: {status_counts}")
-            self.app_logger.info(f"Calculated progress_percent: {progress_percent:.1f}%")
-            self.app_logger.info(f"Calculated priority_counts: {priority_counts}")
+    # --- Modified update_ui ---
+    def update_ui(self) -> None:
+        """Updates all UI components based on the current state."""
+        # Update title/project info regardless of mode first
+        current_plan = self.all_plans.get(self.current_plan_path)
+        # --- Debug Logging Start ---
+        self.app_logger.debug(f"update_ui: Updating ProjectInfo... current_plan_path={self.current_plan_path}, current_plan is None: {current_plan is None}")
+        # --- Debug Logging End ---
+        try:
+            title_widget = self.query_one(TitleDisplay)
+            project_info_widget = self.query_one(ProjectInfo)
+            if current_plan:
+                title_widget.update(f"[b cyan]Metsuke[/] - {current_plan.project.name}")
+                # Call _render_display directly with required arguments
+                project_info_widget._render_display(current_plan.project, self.current_plan_path)
+            else:
+                title_widget.update("[b cyan]Metsuke[/]")
+                # Call _render_display directly with None for project
+                project_info_widget._render_display(None, self.current_plan_path)
+                if (
+                    self.current_plan_path
+                    and self.all_plans.get(self.current_plan_path) is None
+                ):
+                    # The _render_display call above already handles the display part
+                    # We might still want to log the specific error here or notify
+                    self.app_logger.warning(f"Error state detected for plan: {self.current_plan_path.name}")
+        except Exception as e:
+            self.app_logger.error(f"Error updating title/project info: {e}")
 
-            self.query_one(TaskProgress).update_progress(status_counts, progress_percent)
-            self.query_one(PriorityBreakdown).priority_counts = priority_counts
-            self.query_one(PriorityBreakdown).refresh() # Refresh static widgets
+        # Update task-specific parts only if not selecting plan
+        if not self.selecting_plan:
+            self.app_logger.debug(
+                f"Updating Task UI for plan: {self.current_plan_path}"
+            )
+            current_plan = self.all_plans.get(self.current_plan_path)
 
-            dep_metrics = self._calculate_dependency_metrics(tasks)
-            self.app_logger.info(f"Calculated dep_metrics: {dep_metrics}")
-            self.query_one(DependencyStatus).update_metrics(dep_metrics) # Use update method
+            if not current_plan:
+                self.app_logger.warning(
+                    "No plan data object found for task UI, clearing."
+                )
+                # Clear Task Table
+                try:
+                    table = self.query_one("#task-table", DataTable)
+                    table.clear(columns=True)
+                except Exception as e:
+                    self.app_logger.error(f"Error clearing task table: {e}")
+                # Clear Stats Widgets
+                try:
+                    self.query_one(TaskProgress).update_progress(Counter(), 0.0)
+                    self.query_one(PriorityBreakdown).priority_counts = Counter()
+                    self.query_one(DependencyStatus).update_metrics({})
+                except Exception as e:
+                    self.app_logger.error(f"Error clearing stats widgets: {e}")
+            else:  # If current_plan is valid
+                # Populate Task Table
+                try:
+                    tasks = current_plan.tasks
+                    table = self.query_one("#task-table", DataTable)
+                    table.clear(columns=True)
+                    table.add_columns(
+                        "ID", "Title", "Prio", "Status", "Completed", "Deps"
+                    )
+                    table.fixed_columns = 1
+                    for task in tasks:
+                        deps_str = ", ".join(map(str, task.dependencies)) or "None"
+                        status_styled = (
+                            f"[{self._get_status_color(task.status)}]{task.status}[/]"
+                        )
+                        priority_styled = f"[{self._get_priority_color(task.priority)}]{task.priority}[/]"
+                        completion_str = task.completion_date.strftime("%Y-%m-%d") if task.completion_date else "-"
+                        table.add_row(
+                            str(task.id),
+                            task.title,
+                            priority_styled,
+                            status_styled,
+                            completion_str,
+                            deps_str,
+                            key=str(task.id),
+                        )
+                except Exception as e:
+                    self.app_logger.error(
+                        f"Error populating task table: {e}", exc_info=True
+                    )
 
+                # Update Stats Widgets
+                try:
+                    if tasks:
+                        total_tasks = len(tasks)
+                        status_counts = Counter(t.status for t in tasks)
+                        priority_counts = Counter(t.priority for t in tasks)
+                        done_count = status_counts.get("Done", 0)
+                        progress_percent = (
+                            (done_count / total_tasks) * 100 if total_tasks > 0 else 0
+                        )
+                        self.query_one(TaskProgress).update_progress(
+                            status_counts, progress_percent
+                        )
+                        self.query_one(
+                            PriorityBreakdown
+                        ).priority_counts = priority_counts
+                        # Refresh static widgets like PriorityBreakdown after updating counts
+                        self.query_one(PriorityBreakdown).refresh()
+                        dep_metrics = self._calculate_dependency_metrics(tasks)
+                        self.query_one(DependencyStatus).update_metrics(dep_metrics)
+                    else:
+                        # If there are no tasks, clear the stats
+                        self.query_one(TaskProgress).update_progress(Counter(), 0.0)
+                        self.query_one(PriorityBreakdown).priority_counts = Counter()
+                        self.query_one(PriorityBreakdown).refresh()
+                        self.query_one(DependencyStatus).update_metrics({})
+                except Exception as e:
+                    self.app_logger.error(
+                        f"Error updating stats widgets: {e}", exc_info=True
+                    )
         else:
-            self.app_logger.info("Clearing statistics as no tasks found.")
-            self.query_one(TaskProgress).update_progress(Counter(), 0.0)
-            self.query_one(PriorityBreakdown).priority_counts = Counter()
-            self.query_one(PriorityBreakdown).refresh()
-            self.query_one(DependencyStatus).update_metrics({}) # Use update method
+            self.app_logger.debug("Skipping task UI update while selecting plan.")
+
+        # Update footer info (this part seems ok)
+        try:
+            footer = self.query_one(AppFooter)
+            footer.current_plan_path = self.current_plan_path
+        except Exception as e:
+            self.app_logger.error(f"Error updating footer info: {e}")
 
     # Helper methods remain mostly the same, accepting Task objects
     def _get_status_color(self, status: str) -> str:
@@ -387,7 +656,7 @@ class TaskViewer(App):
         total_deps = 0
         no_deps_count = 0
         blocked_by_deps_count = 0
-        ready_tasks: List[Task] = [] # Explicitly type
+        ready_tasks: List[Task] = []  # Explicitly type
 
         for task in tasks:
             deps = task.dependencies
@@ -411,12 +680,10 @@ class TaskViewer(App):
         most_depended_id = most_depended[0][0] if most_depended else None
         most_depended_count = most_depended[0][1] if most_depended else 0
 
-        next_task: Optional[Task] = None # Explicitly type
+        next_task: Optional[Task] = None  # Explicitly type
         if ready_tasks:
             priority_order = {"high": 0, "medium": 1, "low": 2}
-            ready_tasks.sort(
-                key=lambda t: (priority_order.get(t.priority, 99), t.id)
-            )
+            ready_tasks.sort(key=lambda t: (priority_order.get(t.priority, 99), t.id))
             next_task = ready_tasks[0]
 
         return {
@@ -426,16 +693,20 @@ class TaskViewer(App):
             "most_depended_id": most_depended_id,
             "most_depended_count": most_depended_count,
             "avg_deps": total_deps / len(tasks) if tasks else 0.0,
-            "next_task": next_task, # Store the Task object itself
+            "next_task": next_task,  # Store the Task object itself
         }
 
     # Action methods moved from Metsuke.py
     def action_copy_log(self) -> None:
         """Copies the current log content to the clipboard."""
         if not _PYPERCLIP_AVAILABLE:
-             self.app_logger.error("Pyperclip not installed. Cannot copy log.")
-             self.notify("Pyperclip not installed. Cannot copy log.", title="Error", severity="error")
-             return
+            self.app_logger.error("Pyperclip not installed. Cannot copy log.")
+            self.notify(
+                "Pyperclip not installed. Cannot copy log.",
+                title="Error",
+                severity="error",
+            )
+            return
 
         if self.tui_handler and self.tui_handler.messages:
             log_content = "\n".join(self.tui_handler.messages)
@@ -454,24 +725,371 @@ class TaskViewer(App):
              self.app_logger.warning("Log handler not ready, cannot copy.")
              self.notify("Log handler not ready.", title="Error", severity="warning")
 
-
     def action_toggle_log(self) -> None:
         """Toggles the visibility of the log view panel."""
         try:
             log_widget = self.query_one(Log)
             log_widget.display = not log_widget.display
-            self.app_logger.info(f"Log view display toggled {'on' if log_widget.display else 'off'}.")
+            self.app_logger.info(
+                f"Log view display toggled {'on' if log_widget.display else 'off'}."
+            )
         except Exception as e:
             self.app_logger.error(f"Error toggling log display: {e}")
 
     def action_show_help(self) -> None:
         """Shows the help/context modal screen."""
-        # Pass the context loaded from the plan data
-        self.push_screen(HelpScreen(plan_context=self.plan_context))
+        current_plan = self.all_plans.get(self.current_plan_path)
+        context_text = current_plan.context if current_plan else "No context available."
+        self.push_screen(HelpScreen(plan_context=context_text))
 
-    # Action to enable command palette (uses default Textual action)
-    # def action_command_palette(self) -> None:
-    #     self.app.action_command_palette() # This should be handled automatically by Textual if binding exists
+    # --- Modified action_open_plan_selection ---
+    def action_open_plan_selection(self) -> None:
+        """Toggles the plan selection view integrated into the main screen."""
+        self.app_logger.info(f"Action: Toggle Plan Selection View. Current state: {self.selecting_plan}")
+        if self.selecting_plan: # If currently selecting, turn it off
+            self.selecting_plan = False
+        else: # If not selecting, turn it on
+            # Now, set the state to True, which will trigger the watch method.
+            self.selecting_plan = True
+
+    # --- New watch method for UI switching ---
+    def watch_selecting_plan(self, selecting: bool) -> None:
+        """Toggle visibility of widgets based on plan selection state."""
+        self.app_logger.info(f"Watch selecting_plan: {selecting}")
+        try:
+            dashboard = self.query_one("#dashboard")
+            task_table = self.query_one("#task-table", DataTable)
+            plan_table = self.query_one("#plan-selection-table", DataTable)
+            footer = self.query_one(AppFooter)
+
+            # Show/hide main content panels
+            dashboard.display = not selecting
+            task_table.display = not selecting
+            plan_table.display = selecting
+
+            # Update footer and set focus
+            if selecting: # Switching TO plan selection
+                self.app_logger.info("Switching to plan selection view.")
+                # Populate the table *before* trying to focus it
+                self._populate_plan_selection_table()
+                # Now focus the table, let Textual handle default cursor position (usually row 0)
+                plan_table.focus()
+            else:
+                task_table = self.query_one("#task-table", DataTable)
+                # Restore normal footer info (implementation needed in AppFooter)
+                self.app_logger.info("Footer update needed for normal mode")
+                # footer.update_info() # Example: Restore normal info
+                task_table.focus()
+
+        except Exception as e:
+            self.app_logger.error(f"Error updating UI for plan selection state: {e}", exc_info=True)
+            # Ensure focus goes somewhere safe if UI update fails
+            try:
+                self.query_one("#task-table").focus()
+            except Exception:
+                pass # Ignore if task table itself is the problem
+
+    # --- New method to populate plan selection table ---
+    def _populate_plan_selection_table(self) -> None: # No longer returns index
+        """Clears and refills the plan selection table."""
+        self.app_logger.info("Populating plan selection table.")
+        try:
+            table = self.query_one("#plan-selection-table", DataTable)
+            table.clear(columns=True)
+            # Define columns
+            table.add_column(" ", width=3) # Focus indicator column
+            table.add_column("Plan Name")
+            table.add_column("Display Path")
+            table.add_column("File Path")
+            table.cursor_type = "row"
+
+            if not self.all_plans:
+                 table.add_row("-", "[i red]No plans loaded[/]")
+                 return # Nothing more to do
+
+            sorted_paths = sorted(self.all_plans.keys())
+
+            for i, path in enumerate(sorted_paths):
+                plan = self.all_plans.get(path)
+                is_focused = (path == self.current_plan_path)
+                # Use Text object for indicator (already imported)
+                focus_indicator = Text.from_markup("[b]>[/b]") if is_focused else Text(" ")
+                name = plan.project.name if plan else "[i red]Load Error[/i]"
+                try:
+                     # Display path relative to CWD if possible
+                     display_path = str(path.relative_to(Path.cwd()))
+                except ValueError:
+                     display_path = str(path.name) # Fallback to just the filename
+
+                table.add_row(focus_indicator, name, display_path, str(path), key=str(path))
+
+        except Exception as e:
+             self.app_logger.error(f"Error populating plan selection table: {e}", exc_info=True)
+
+    # --- Modified switch_focus_plan ---
+    def switch_focus_plan(self, target_path: Path) -> None:
+        """Switches the focus to the specified plan path and updates UI."""
+        if not target_path or not target_path.exists():
+            self.app_logger.error(
+                f"Attempted to switch to non-existent plan: {target_path}"
+            )
+            self.notify(
+                f"Cannot switch: Plan {target_path} not found.", severity="error"
+            )
+            return
+
+        # Check if the target plan actually exists in our loaded plans
+        if target_path not in self.all_plans:
+            self.app_logger.warning(
+                f"Attempted to switch to plan not in loaded list: {target_path}. Reloading might be needed."
+            )
+            # Optionally, you could try loading it here, but for now, just notify
+            # self.all_plans.update(load_plans([target_path])) # Example: Force load attempt
+            self.notify(
+                f"Cannot switch: Plan {target_path.name} not loaded.",
+                severity="warning",
+            )
+            return
+
+        current_focus = self.current_plan_path
+        if current_focus == target_path:
+            self.app_logger.info(
+                f"Already focused on {target_path.name}. No switch needed."
+            )
+            # Still need to exit selection mode if called from there
+            if self.selecting_plan:
+                self.app_logger.debug("Exiting selection mode after selecting the current plan.")
+                self.selecting_plan = False
+            return
+
+        self.app_logger.info(
+            f"Attempting to switch focus from {current_focus} to {target_path}"
+        )
+
+        try:
+            # Manage focus handles the logic of setting 'focus: false' on the old plan
+            # and 'focus: true' on the new one, then saving them.
+            updated_plans, new_focus_path = manage_focus(
+                self.all_plans, new_focus_target=target_path
+            )
+
+            # Update the internal state AFTER manage_focus has potentially saved files
+            self.all_plans = updated_plans
+            self.current_plan_path = new_focus_path # Should be == target_path if successful
+
+            if self.current_plan_path == target_path:
+                self.app_logger.info(f"Successfully switched focus to {target_path.name}")
+                self.notify(f"Switched to plan: {target_path.name}")
+                self.update_ui() # Update the UI to reflect the new plan
+                self.selecting_plan = False # Exit selection mode after successful switch
+            else:
+                # This might happen if manage_focus failed to set the focus for some reason
+                self.app_logger.error(f"Focus switch failed. Expected {target_path}, but got {self.current_plan_path}")
+                self.notify(f"Failed to switch focus to {target_path.name}", severity="error")
+                # Optionally, try to revert or handle the error state
+                # For now, the UI might be out of sync or show the previous plan
+
+        except Exception as e:
+            self.app_logger.exception(f"Error switching focus to {target_path.name}")
+            self.notify(f"Error switching plan: {e}", severity="error")
+
+    # --- Actions for Plan Switching (Left/Right Arrows) ---
+    def action_previous_plan(self) -> None:
+        """Switches focus to the previous plan file in the sorted list."""
+        # Only allow direct switching if NOT in plan selection mode
+        if self.selecting_plan:
+            self.app_logger.info("Ignoring Prev Plan action while in selection mode.")
+            return
+        self.app_logger.info("Action: Previous Plan")
+        valid_plan_paths = sorted(
+            [p for p, plan in self.all_plans.items() if plan is not None]
+        )
+
+        if len(valid_plan_paths) <= 1:
+            self.notify("No previous plan to switch to.")
+            return
+
+        if self.current_plan_path is None:
+            # If no current focus, maybe switch to the last one? Or first? Let's pick last.
+            target_path = valid_plan_paths[-1]
+            self.app_logger.info("No current focus, attempting to switch to last plan.")
+        else:
+            try:
+                current_index = valid_plan_paths.index(self.current_plan_path)
+                prev_index = (current_index - 1) % len(valid_plan_paths)  # Wrap around
+                target_path = valid_plan_paths[prev_index]
+            except ValueError:
+                self.app_logger.warning(
+                    f"Current focus path {self.current_plan_path} not found in valid paths. Switching to first."
+                )
+                target_path = valid_plan_paths[
+                    0
+                ]  # Default to first if current is somehow invalid
+
+        self.switch_focus_plan(target_path)
+
+    def action_next_plan(self) -> None:
+        """Switches focus to the next plan file in the sorted list."""
+        # Only allow direct switching if NOT in plan selection mode
+        if self.selecting_plan:
+            self.app_logger.info("Ignoring Next Plan action while in selection mode.")
+            return
+        self.app_logger.info("Action: Next Plan")
+        valid_plan_paths = sorted(
+            [p for p, plan in self.all_plans.items() if plan is not None]
+        )
+
+        if len(valid_plan_paths) <= 1:
+            self.notify("No next plan to switch to.")
+            return
+
+        if self.current_plan_path is None:
+            # If no current focus, maybe switch to the first one?
+            target_path = valid_plan_paths[0]
+            self.app_logger.info(
+                "No current focus, attempting to switch to first plan."
+            )
+        else:
+            try:
+                current_index = valid_plan_paths.index(self.current_plan_path)
+                next_index = (current_index + 1) % len(valid_plan_paths)  # Wrap around
+                target_path = valid_plan_paths[next_index]
+            except ValueError:
+                self.app_logger.warning(
+                    f"Current focus path {self.current_plan_path} not found in valid paths. Switching to first."
+                )
+                target_path = valid_plan_paths[
+                    0
+                ]  # Default to first if current is somehow invalid
+
+        self.switch_focus_plan(target_path)
+
+    # --- New/Modified on_key handler --- 
+    async def on_key(self, event: events.Key) -> None:
+        """Handle key presses, especially for plan selection mode."""
+        # Log all key presses for debugging
+        self.app_logger.debug(f"Key pressed: {event.key}, Selecting Plan: {self.selecting_plan}")
+
+        if self.selecting_plan:
+            if event.key == "enter":
+                event.stop() # Prevent other handlers from processing Enter
+                self.app_logger.info("Enter pressed in plan selection mode.")
+                try:
+                    table = self.query_one("#plan-selection-table", DataTable)
+                    # Log focus status
+                    self.app_logger.debug(f"Plan table focused: {table.has_focus}, App focused: {self.focused}")
+                    # --- Corrected condition --- 
+                    if table.cursor_row is not None:
+                        # --- Changed back AGAIN to get_row_at --- 
+                        row_data = table.get_row_at(table.cursor_row)
+                        self.app_logger.debug(f"get_row_at returned: {row_data!r} (Type: {type(row_data)})" )
+                        
+                        key_string = None
+                        if isinstance(row_data, (list, tuple)) and len(row_data) > 3: # Assuming key is 4th element (index 3)
+                             key_string = row_data[3] 
+                             if not isinstance(key_string, str):
+                                 self.app_logger.error(f"Extracted key from row_data is not a string: {key_string!r}")
+                                 key_string = None # Treat as failure
+                        else:
+                             self.app_logger.error(f"Could not extract key string from row_data: {row_data!r}")
+
+                        if key_string: # Check if we got a valid string key
+                            selected_path = Path(key_string)
+                            if self.all_plans.get(selected_path) is not None:
+                                self.app_logger.info(f"Attempting switch via Enter to: {selected_path}")
+                                self.switch_focus_plan(selected_path)
+                            else:
+                                self.app_logger.warning(f"Enter selected invalid plan: {selected_path}")
+                                self.notify(f"Cannot select plan '{selected_path.name}' due to loading error.", severity="error")
+                        else:
+                            self.app_logger.error("Could not get row key for Enter selection.")
+                    else:
+                         self.app_logger.warning("Enter pressed with no valid row selected in plan table.")
+                except Exception as e:
+                     self.app_logger.error(f"Error processing Enter in plan selection: {e}", exc_info=True)
+
+            elif event.key == "escape":
+                event.stop() # Prevent other handlers from processing Escape
+                self.app_logger.info("Escape pressed in plan selection mode. Exiting selection.")
+                self.selecting_plan = False # This will trigger watch and focus task table
+            
+        # If not selecting_plan, or key was not handled above, 
+        # let the default key handling occur (e.g., for app-level bindings like Ctrl+C)
+
+    # --- Modified initial load --- 
+    def _initial_load_and_focus(self) -> None:
+        """Loads initial plan files and determines the focus plan."""
+        self.app_logger.info("Performing initial load and focus management...")
+        try:
+            # Ensure core imports are available if not already module level
+            # from ..core import load_plans, manage_focus
+            # from datetime import datetime
+
+            loaded_plans = load_plans(self.initial_plan_files)
+            # --- Debug Logging Start ---
+            log_loaded_plans = {str(p): ("Project" if plan else "None") for p, plan in loaded_plans.items()}
+            self.app_logger.debug(f"_initial_load_and_focus: load_plans result: {log_loaded_plans}")
+
+            # manage_focus might save files if focus needs correction
+            updated_plans, focus_path = manage_focus(loaded_plans)
+
+            self.app_logger.debug(f"_initial_load_and_focus: manage_focus returned focus_path: {focus_path}")
+
+            self.all_plans = updated_plans  # Update reactive variable
+            self.current_plan_path = focus_path  # Update reactive variable
+            self.last_load_time = datetime.now()
+
+            self.app_logger.debug(f"_initial_load_and_focus: Set self.current_plan_path to: {self.current_plan_path}")
+            # --- Debug Logging End ---
+
+            if self.current_plan_path is None and any(
+                updated_plans.values()
+            ):  # Check if focus is None but plans exist
+                self.app_logger.error(
+                    "Failed to determine a focus plan during initial load, although valid plans exist."
+                )
+                # Display an error message in the UI? Maybe ProjectInfo?
+                # The update_ui call below will handle displaying an error state
+                self.notify(
+                    "Error: Could not set focus plan.",
+                    title="Load Error",
+                    severity="error",
+                )
+            elif self.current_plan_path is None:
+                self.app_logger.warning("No valid plans loaded or found.")
+                self.notify(
+                    "No valid plan files found or loaded.",
+                    title="Load Warning",
+                    severity="warning",
+                )
+
+            self.update_ui()  # Update UI with loaded data
+            # Update footer initially
+            try:
+                footer = self.query_one(AppFooter)
+                footer.current_plan_path = self.current_plan_path
+                footer.update_info()  # Update with time and initial plan
+            except Exception as e:
+                self.app_logger.error(f"Error setting initial footer info: {e}")
+
+            self.app_logger.info("Initial load and focus management complete.")
+
+        except Exception as e:
+            self.app_logger.exception(
+                "Critical error during initial load and focus management."
+            )
+            # Display error to user
+            self.notify(
+                f"Critical error loading plans: {e}",
+                title="Load Error",
+                severity="error",
+                timeout=10,
+            )
+            # Set state to indicate error
+            self.all_plans = {}
+            self.current_plan_path = None
+            self.update_ui()  # Try to update UI to show empty state/error
+
 
 # Note: The part that runs the app (`if __name__ == "__main__":`) is NOT copied here.
 # It will be handled by the CLI entry point (Task 11). 

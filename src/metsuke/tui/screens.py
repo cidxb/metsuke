@@ -3,8 +3,14 @@
 
 from textual.app import ComposeResult
 from textual.containers import Container
-from textual.widgets import Static, Markdown
+from textual.widgets import Static, Markdown, DataTable
 from textual.screen import ModalScreen
+from textual.binding import Binding
+from pathlib import Path
+from typing import Dict, Optional
+from rich.text import Text
+from ..models import Project
+import logging
 
 # Conditional import for pyperclip
 try:
@@ -36,8 +42,7 @@ class HelpScreen(ModalScreen):
     """
 
     BINDINGS = [
-        ("escape,q", "close_help", "Close"),
-        # Add other bindings if they should be screen-specific
+        Binding("escape", "close_help", "Close", show=False),
     ]
 
     def __init__(self, plan_context: str):
@@ -46,17 +51,30 @@ class HelpScreen(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Container():
-            yield Static("[b]Help / Context[/b]", classes="title")
-            yield Markdown(self.plan_context or "_No context provided in PROJECT_PLAN.yaml_", classes="context")
-            yield Static("[u]Key Bindings:[/u]\n" # App-level bindings shown here
-                         " Q / Esc : Close Help / Quit App\n"
-                         " Ctrl+L  : Copy Log to Clipboard\n"
-                         " Ctrl+D  : Toggle Log Panel Visibility\n"
-                         " Ctrl+P  : Open Command Palette (theme, etc.)\n"
-                         " ?       : Show this Help Screen", classes="bindings")
-            yield Static("Press Esc or Q to close.", classes="close-hint")
+            yield Static("[b]Help & Context[/b]", classes="title")
+            yield Markdown(f"**Current Context:**\n```\n{self.plan_context}\n```", classes="context")
+            yield Static("[b]Key Bindings[/b]", classes="bindings")
+            yield Markdown("""\
+*   `Ctrl+C`: Quit
+*   `Ctrl+B`: Select Focus Plan
+*   `Ctrl+S`: Save Current Plan
+*   `Ctrl+A`: Add new task/subtask
+*   `Ctrl+E`: Edit selected task/subtask
+*   `Ctrl+D`: Toggle task done/pending
+*   `Delete`: Delete selected task/subtask
+*   `Up/Down`: Navigate tasks
+*   `Left/Right`: Navigate focus plans
+*   `?`: Show this help screen\
+""")
+            yield Static("Press Esc to close.", classes="close-hint")
 
     def action_close_help(self) -> None:
-        self.app.pop_screen()
+        """Called when the user presses escape."""
+        self.dismiss()
 
     # Note: App-level bindings like copy_log, toggle_log are handled by the main app 
+
+# --- PlanSelectionScreen Removed --- 
+
+# class PlanSelectionScreen(ModalScreen[Optional[Path]]): 
+#     # ... (Entire class definition deleted) ... 

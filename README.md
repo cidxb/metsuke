@@ -119,9 +119,11 @@ except (PlanLoadingError, PlanValidationError) as e:
 
 ## Terminal User Interface (TUI)  TUI
 
-The Metsuke TUI provides a visual and interactive way to explore the `PROJECT_PLAN.yaml` content directly in your terminal. It automatically monitors the plan file for changes and updates the display in real-time.
+The Metsuke TUI provides a visual and interactive way to explore the `PROJECT_PLAN.yaml` content (or multiple plan files in a `plans/` directory) directly in your terminal. It automatically monitors the plan file(s) for changes and updates the display in real-time.
 
-<!-- TODO: Add a screenshot or GIF of the TUI in action -->
+<p align="center">
+  <img src="metsuke_screenshot.png" alt="Metsuke TUI Screenshot"/>
+</p>
 
 **Launching the TUI:**
 
