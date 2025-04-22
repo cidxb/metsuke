@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional, List
 import importlib.util
 import toml
+import yaml
 # import yaml - Using ruamel.yaml for loading in update-plan if needed
 from ruamel.yaml import YAML
 import logging
