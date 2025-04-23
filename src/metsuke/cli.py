@@ -18,45 +18,18 @@ import io
 from .core import find_plan_files, load_plans, manage_focus, save_plan, PLANS_DIR_NAME, PLAN_FILE_PATTERN, DEFAULT_PLAN_FILENAME
 from .exceptions import PlanLoadingError, PlanValidationError
 from .models import Project, ProjectMeta, Task
+# Import the template from core
+from .core import collaboration_guide_template
 
 # Need ValidationError for checking updated schema
 from pydantic import ValidationError
 
 # --- Module Level Templates --- 
 # Define templates here so they can be accessed by multiple commands (init, update-plan)
-DEFAULT_PLAN_FILENAME_FOR_TEMPLATE = "PROJECT_PLAN.yaml" # Use a distinct name to avoid conflict with core constant if imported
-project_name_placeholder = "Your Project Name" # Placeholder for template
-project_version_placeholder = "0.1.0" # Placeholder for template
-collaboration_guide_template = f"""\
-# {DEFAULT_PLAN_FILENAME_FOR_TEMPLATE} - {project_name_placeholder} Project
-# -------------------- Collaboration Usage --------------------
-# This file serves as the primary planning and tracking document for {project_name_placeholder}.
-# AI assistants should primarily interact with the plan file where 'focus: true' is set.
-#
-# As the AI assistant, I will adhere to the following process for planning:
-#   1. Engage in an initial discussion phase (e.g., INNOVATE mode) to fully understand project goals, context, and constraints before modifying this plan.
-#   2. Summarize key discussion points, decisions, and rationale in a designated document (e.g., `docs/discussion_log.md`) for transparency and future reference.
-#   3. Propose an initial, high-level task breakdown in this file (PLAN mode).
-#   4. Based on user feedback, iteratively refine and decompose tasks into more specific, granular, and actionable steps until the plan is sufficiently detailed for execution.
-#   5. Ensure each task has a clear description, status, priority, and dependencies correctly mapped.
-#   6. Maintain and update the status of each task (pending, in_progress, Done).
-#   7. Automatically record the 'completion_date' when a task is marked 'Done'.
-#   8. Refer to these tasks when discussing development steps with you.
-#   9. Request explicit confirmation (e.g., "ENTER EXECUTE MODE" or similar) before starting the implementation of any task described herein. Upon receiving confirmation, immediately update the task status to `in_progress` before proceeding.
-#  10. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
-# Please keep the context and task list updated to reflect the current project state.
-# The 'focus: true' flag indicates the currently active plan for AI interaction.
-# -------------------------------------------------------------
-# Defines project metadata and tasks.
-#
-# Recommended values:
-#   focus: [true, false] (Only one plan file should have true)
-#   status: ['pending', 'in_progress', 'Done', 'blocked']
-#   priority: ['low', 'medium', 'high']
-#   dependencies: List of task IDs this task depends on. Empty list means no dependencies.
-#   completion_date: ISO 8601 datetime string or null (Automatically set when status becomes 'Done').
-#   context: Optional string containing project context/notes (displays in Help '?').
-"""
+# DEFAULT_PLAN_FILENAME_FOR_TEMPLATE = "PROJECT_PLAN.yaml" # Removed
+project_name_placeholder = "Your Project Name" # KEEP THIS
+project_version_placeholder = "0.1.0" # KEEP THIS
+# collaboration_guide_template = f"""...""" # Removed
 
 context_template = f"""\
 ## {project_name_placeholder} (Replace Me)
@@ -71,7 +44,7 @@ Briefly describe the main goal of this project.
 
 ### Notes
 Any other relevant context for the AI assistant.
-"""
+""" # KEEP THIS
 
 tasks_template = [
     {'id': 1, 'title': 'Set up initial project structure', 'description': '''**Plan:**
@@ -93,7 +66,7 @@ tasks_template = [
 1. Choose CI/CD platform (e.g., GitHub Actions).
 2. Create basic workflow (lint, test).
 3. Configure triggers.''', 'status': 'pending', 'priority': 'low', 'dependencies': [1, 4], 'completion_date': None},
-]
+] # KEEP THIS
 
 # Default plan filename
 # PLAN_FILENAME = "PROJECT_PLAN.yaml"
@@ -286,7 +259,7 @@ def init(mode):
 @click.argument("subproject_name", type=str)
 @click.pass_context
 def add_plan(ctx, subproject_name):
-    """Create a new plan file in plans/ and set it as focus."""
+    """Create a new plan file in plans/ with default templates."""
     base_dir = Path.cwd()
     plans_dir = base_dir / PLANS_DIR_NAME
 
@@ -306,37 +279,6 @@ def add_plan(ctx, subproject_name):
         click.echo(f"Error: Plan file '{new_plan_path}' already exists.", err=True)
         sys.exit(1)
 
-    # 3. Find and Unfocus Old Plan
-    old_focus_path_str = "None"
-    try:
-        # We only care about files within plans_dir for focus management here
-        plan_files_in_dir = find_plan_files(base_dir, plans_dir) # Force search in plans dir
-        if not plan_files_in_dir:
-             click.echo(f"Warning: No existing plan files found in '{PLANS_DIR_NAME}'. Creating first plan.", err=True)
-             old_focus_path = None
-        else:
-            loaded_plans = load_plans(plan_files_in_dir)
-            # Manage focus ensures only one focus exists, returns the path
-            updated_plans, old_focus_path = manage_focus(loaded_plans)
-
-            if old_focus_path and old_focus_path in updated_plans and updated_plans[old_focus_path]:
-                old_plan = updated_plans[old_focus_path]
-                if old_plan.focus: # Should be true if manage_focus worked
-                    click.echo(f"Removing focus from previous plan: {old_focus_path.relative_to(base_dir)}")
-                    old_plan.focus = False
-                    if not save_plan(old_plan, old_focus_path):
-                        click.echo(f"Warning: Failed to save focus change for {old_focus_path}. Proceeding cautiously.", err=True)
-                        # Continue, but the state might be slightly off until next focus management
-                    old_focus_path_str = str(old_focus_path.relative_to(base_dir))
-            else:
-                 click.echo(f"Warning: Could not determine or load the previous focus plan in '{PLANS_DIR_NAME}'.", err=True)
-                 old_focus_path = None # Treat as if no previous focus
-
-    except Exception as e:
-        click.echo(f"Error during focus management: {e}. Aborting.", err=True)
-        logging.exception("Error managing focus in add-plan")
-        sys.exit(1)
-
     # 4. Create New Plan Content
     click.echo(f"Creating new plan file: {new_plan_path.relative_to(base_dir)}")
     new_project = Project(
@@ -344,24 +286,20 @@ def add_plan(ctx, subproject_name):
             name=subproject_name, # Use the provided name
             version="0.1.0" # Default version
         ),
-        context=f"## Plan for {subproject_name}\n\nDescribe the goals and context for this sub-project here.",
-        tasks=[], # Start with empty task list
-        focus=True # Set new plan as focus
+        context=context_template, # Use the module-level template
+        tasks=tasks_template, # Use the module-level template
+        focus=False # New plans should typically not be focus initially
     )
 
     # 5. Save New Plan
     if not save_plan(new_project, new_plan_path):
         click.echo(f"Error: Failed to save new plan file to {new_plan_path}.", err=True)
-        # Attempt to revert focus on old plan? Difficult state to recover.
-        # Best to exit with error, user needs to manually fix YAML files.
-        if old_focus_path:
-            click.echo(f"Critical Error: New plan save failed. Focus might be inconsistent. Please manually check {old_focus_path} and {new_plan_path}", err=True)
+        # If save fails, no focus change happened, so simpler error message
+        click.echo(f"Critical Error: New plan save failed. Please check {new_plan_path}", err=True)
         sys.exit(1)
 
     # 6. Feedback
-    click.echo(f"Successfully created and focused plan: {new_plan_path.relative_to(base_dir)}")
-    if old_focus_path:
-        click.echo(f"Previous focus was removed from: {old_focus_path_str}")
+    click.echo(f"Successfully created plan: {new_plan_path.relative_to(base_dir)} (focus remains unchanged)")
 
 
 @click.command("update-plan")

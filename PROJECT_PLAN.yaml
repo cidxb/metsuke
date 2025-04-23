@@ -30,400 +30,536 @@ project:
   name: Metsuke
   version: 0.1.2
   license: Apache-2.0
-context: "## Metsuke: AI-Assisted Development Task Manager\n\n### Goal\nCreate a Python
-  package (CLI and library) called Metsuke to manage project plans stored in YAML
-  files. This aims to improve the robustness and traceability of AI-assisted software
-  development by providing a structured way to define, track, and reference project
-  tasks and context.\n\n### Core Components\n*   **Data Model (`models.py`):** Pydantic
-  models for `Project`, `Task`, etc., ensuring data validation.\n*   **Core Logic
-  (`core.py`):** Handles YAML loading, parsing, validation, and provides the library
-  API.\n*   **CLI (`cli.py`, `__main__.py`):** Command-line interface using `click`
-  for user interaction (viewing tasks, project info).\n*   **Configuration (`pyproject.toml`):**
-  Project setup, dependencies, and entry points.\n*   **Documentation (`README.md`,
-  `docs/`):** User guides and project information.\n*   **Testing (`tests/`):** Unit
-  and integration tests using `pytest`.\n\n### Plan Format\nUses a YAML file (like
-  this one) with `project`, `context`, and `tasks` sections.\n"
+context: "## Metsuke: AI-Assisted Development Task Manager
+
+
+  ### Goal
+
+  Create a Python package (CLI and library) called Metsuke to manage project plans stored in YAML files. This aims to improve the robustness and traceability of AI-assisted software development by providing a structured way to define, track, and reference project tasks and context.
+
+
+  ### Core Components
+
+  *   **Data Model (`models.py`):** Pydantic models for `Project`, `Task`, etc., ensuring data validation.
+
+  *   **Core Logic (`core.py`):** Handles YAML loading, parsing, validation, and provides the library API.
+
+  *   **CLI (`cli.py`, `__main__.py`):** Command-line interface using `click` for user interaction (viewing tasks, project info).
+
+  *   **Configuration (`pyproject.toml`):** Project setup, dependencies, and entry points.
+
+  *   **Documentation (`README.md`, `docs/`):** User guides and project information.
+
+  *   **Testing (`tests/`):** Unit and integration tests using `pytest`.
+
+
+  ### Plan Format
+
+  Uses a YAML file (like this one) with `project`, `context`, and `tasks` sections.\n"
 tasks:
-  - id: 1
-    title: Set up initial project structure
-    description: "**Plan:**\n1. Create base directories: `src/metsuke`, `tests`, `docs`.\n
-      2. Create basic configuration files: `.gitignore`, `pyproject.toml`, `LICENSE`.\n
-      3. Create initial `README.md`.\n4. Create placeholder Python files: `__init__.py`,
-      `__main__.py`, `cli.py`, `core.py`, `models.py`, `exceptions.py`.\n5. Create
-      placeholder test and docs files.\n"
-    status: Done
-    priority: high
-    dependencies: []
-    completion_date:
-  - id: 2
-    title: Implement plan loading and basic parsing
-    description: "**Plan:**\n1. Define initial Pydantic models in `models.py` for
-      `Task` and `Project` based on the YAML structure.\n2. Implement a function in
-      `core.py` to load a specified YAML file using `PyYAML`.\n3. Parse the loaded
-      YAML data into the Pydantic models.\n4. Add basic error handling for file not
-      found or YAML parsing errors in `exceptions.py` and `core.py`.\n"
-    status: Done
-    priority: high
-    dependencies:
-      - 1
-    completion_date:
-  - id: 3
-    title: Implement basic CLI - Show project info
-    description: "**Plan:**\n1. Set up the main `click` group in `__main__.py`.\n
-      2. Add a `show-info` command in `cli.py`.\n3. This command should use `core.py`
-      to load the `PROJECT_PLAN.yaml` (default path).\n4. Display the project name,
-      version, and context loaded from the plan file.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 2
-    completion_date:
-  - id: 4
-    title: Implement basic CLI - List tasks
-    description: "**Plan:**\n1. Add a `list-tasks` command in `cli.py`.\n2. This command
-      should load the plan using `core.py`.\n3. Iterate through the `tasks` list from
-      the loaded data.\n4. Display each task's ID, title, and status in a readable
-      format.\n5. Add options to filter tasks (e.g., by status) later.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 2
-    completion_date:
-  - id: 5
-    title: Implement core library API access
-    description: "**Plan:**\n1. Refine the loading function in `core.py` to be easily
-      usable as a library function (e.g., `load_plan(filepath)` returning the `Project`
-      Pydantic object).\n2. Expose necessary classes/functions (like `load_plan`,
-      `Project`, `Task`, custom exceptions) in `src/metsuke/__init__.py`.\n3. Add
-      basic docstrings explaining how to use the library function.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 2
-    completion_date:
-  - id: 6
-    title: Set up testing framework and initial test
-    description: "**Plan:**\n1. Add `pytest` to `dev` dependencies in `pyproject.toml`.\n
-      2. Create a basic test file in `tests/`, e.g., `test_core.py`.\n3. Write a first
-      test case to load the `PROJECT_PLAN.yaml` using the `core.py` function and assert
-      that the project name is correctly parsed.\n4. Configure `pytest` (if needed,
-      e.g., via `pyproject.toml` or `pytest.ini`).\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 2
-      - 5
-    completion_date:
-  - id: 7
-    title: Implement plan schema validation
-    description: "**Plan:**\n1. Enhance the Pydantic models in `models.py` with more
-      specific types and validation rules (e.g., `status` must be one of the allowed
-      values, `dependencies` must be a list of integers).\n2. Ensure the loading function
-      in `core.py` raises validation errors (e.g., `pydantic.ValidationError`) if
-      the YAML file doesn't match the schema.\n3. Update CLI commands (`show-info`,
-      `list-tasks`) to gracefully handle and report validation errors.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 2
-    completion_date:
-  - id: 8
-    title: Add Optional TUI Dependencies
-    description: "**Plan:**\n1. Define an optional dependency group `[tui]` in `pyproject.toml`
-      under `[project.optional-dependencies]`.\n2. Add `textual`, `watchdog`, and
-      `pyperclip` to this `tui` group.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 1
-    completion_date:
-  - id: 9
-    title: Structure TUI Code within Package
-    description: "**Plan:**\n1. Create the directory `src/metsuke/tui/`.\n2. Create
-      `src/metsuke/tui/__init__.py`.\n3. Refactor the components of `Metsuke.py` into
-      logical modules within `src/metsuke/tui/` (e.g., `app.py`, `widgets.py`, `screens.py`).\n
-      4. Move the CSS definition into `app.py` or a separate `styles.py`.\n"
-    status: Done
-    priority: high
-    dependencies:
-      - 1
-    completion_date:
-  - id: 10
-    title: Integrate TUI with Core Data Loading
-    description: "**Plan:**\n1. Modify the TUI's data loading mechanism (`_load_data`
-      in `src/metsuke/tui/app.py`).\n2. Remove direct `yaml.safe_load` logic from
-      TUI.\n3. Import and use `load_plan` function from `src/metsuke/core.py` (requires
-      Task 2/5).\n4. Adapt TUI to use Pydantic models returned by `load_plan`.\n5.
-      Handle `PlanLoadingError` / `PlanValidationError` from `core.py`.\n"
-    status: Done
-    priority: high
-    dependencies:
-      - 2
-      - 5
-      - 9
-    completion_date:
-  - id: 11
-    title: Add 'metsuke tui' CLI Subcommand
-    description: "**Plan:**\n1. In `src/metsuke/cli.py`, create `run_tui()` function.\n
-      2. Import `TaskViewer` from `src/metsuke/tui/app.py`.\n3. Instantiate and run
-      `TaskViewer` app.\n4. Add check for optional dependencies (`textual`, `watchdog`,
-      `pyperclip`).\n5. In `src/metsuke/__main__.py`, add `run_tui` as a command to
-      the main `click` group.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 9
-      - 8
-    completion_date:
-  - id: 12
-    title: Refactor TUI Logging Integration
-    description: "**Plan:**\n1. Review logging setup in `src/metsuke/tui/app.py`.\n
-      2. Ensure logger names are hierarchical (e.g., `metsuke.tui`).\n3. Use an isolated
-      logger for TUI to avoid conflicts.\n4. Ensure `TuiLogHandler` functions correctly.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 9
-    completion_date:
-  - id: 13
-    title: Update Documentation for TUI Feature
-    description: "**Plan:**\n1. Add TUI section to `README.md`.\n2. Explain installation
-      (`pip install metsuke[tui]`).\n3. Document the `metsuke tui` command.\n4. Describe
-      TUI features/usage.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 8
-      - 11
-    completion_date:
-  - id: 14
-    title: Fix TUI Frame Rendering Glitch
-    description: "**Plan:**\n1. Investigate why some borders/frames in the TUI do
-      not extend fully to the edges of the terminal screen.\n2. Identify the specific
-      widgets or containers causing the gaps.\n3. Adjust Textual CSS or widget parameters
-      in `src/metsuke/tui/` to ensure frames cover the intended area.\n4. Test the
-      fix on different terminal sizes.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 9
-    completion_date:
-  - id: 15
-    title: Enhance README with Collaboration Benefits
-    description: "**Plan:**\n1. Identify Sections: Review `README.md` and decide where
-      to add benefits.\n2. Draft Content - Human Benefits: Clarity, tracking, context
-      mgmt, reduced ambiguity, verification.\n3. Draft Content - AI Benefits: Structured
-      state, clear tasks, context access, better suggestions, reduced deviation.\n
-      4. Draft Content - Collaboration Synergy: Shared understanding, less miscommunication,
-      predictable AI, easier review.\n5. Draft Content - Performance/Efficiency: Faster
-      AI onboarding, less clarification, focused execution, higher quality.\n6. Integrate:
-      Merge drafted content into `README.md`.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 1
-    completion_date:
-  - id: 16
-    title: Enhance TUI StatusBar Display
-    description: "**Plan:**\n1. Locate the `StatusBar` widget definition (expected
-      in `src/metsuke/tui/widgets.py` or `app.py` after Task 9).\n2. Modify the `update_time`
-      method.\n3. Change `strftime` format to include Year-Month-Day (e.g., `\"%Y-%m-%d
-      %H:%M:%S\"`).\n4. Adjust layout logic if needed for the longer string.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 9
-    completion_date:
-  - id: 17
-    title: Add Collaboration Example to README
-    description: "**Plan:**\n1. Location: Identify best place in README (e.g., \"
-      Why Metsuke?\" or new \"Example Workflow\" section).\n2. Draft Example: Create
-      dialogue snippet showing task ID reference and AI dependency check.\n3. Integrate:
-      Add drafted example to README.md.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 15
-    completion_date:
-  - id: 18
-    title: Add Emojis to README for Visual Appeal
-    description: "**Plan:**\n1. Review Sections: Identify headings/points in README
-      for emojis.\n2. Select Emojis: Choose relevant emojis (✨, 🤝, 🧑‍💻, 🤖, 👍, 💡, 📦,
-      ▶️, 🛠️, 📄).\n3. Draft Placement: Decide exact insertion points.\n4. Integrate:
-      Modify README.md, ensuring readability.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 15
-      - 17
-    completion_date:
-  - id: 19
-    title: Fix TUI Log Handler Threading Issue on Exit
-    description: "**Plan:**\n1. Open `src/metsuke/tui/handlers.py`.\n2. Locate the
-      `TuiLogHandler` class and its `emit` method.\n3. Change `self.log_widget.app.call_from_thread(self.log_widget.write,
-      msg)` to `self.log_widget.write(msg)`.\n"
-    status: Done
-    priority: high
-    dependencies:
-      - 9
-      - 12
-    completion_date:
-  - id: 20
-    title: Restore/Fix Author Info in TUI StatusBar
-    description: "**Plan:**\n1. Investigate `src/metsuke/tui/widgets.py`, specifically
-      the `StatusBar` class.\n2. Ensure the author string (\"Avocado\") is correctly
-      defined and included in the `self.update(...)` call within `update_time`.\n
-      3. Verify the layout logic correctly positions the author string alongside the
-      time, preventing it from being pushed off-screen or overwritten.\n4. Check the
-      `StatusBar` integration in `src/metsuke/tui/app.py` (`compose` method) to ensure
-      it's correctly added and displayed.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 9
-    completion_date: 2025-04-22T11:30:44Z
-  - id: 21
-    title: Remove Redundant Command Palette Hint from HelpScreen
-    description: "**Plan:**\n1. Modify the `HelpScreen` class definition in `src/metsuke/tui/screens.py`.\n
-      2. In the `compose` method, locate the `Static` widget displaying key bindings.\n
-      3. Remove the line `\" Ctrl+P : Command Palette\"` from the string content of
-      that `Static` widget.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 9
-    completion_date:
-  - id: 22
-    title: Implement 'metsuke init' command for initial plan generation
-    description: "**Plan:**\n1. Add a new `init` command to `src/metsuke/cli.py` and
-      register it in `src/metsuke/__main__.py`.\n2. Implement logic within the `init`
-      command to check if `PROJECT_PLAN.yaml` already exists. If so, print a warning
-      and exit.\n3. Add functionality to scan `pyproject.toml` (primarily) and potentially
-      other files (e.g., `.git/config`, `README.md`) for project name and version.
-      Use placeholders if not found.\n4. Define a default `context` string template.\n
-      5. Define a default list of initial `Task` templates (e.g., setup, test setup,
-      documentation).\n6. Construct the full YAML content string using the gathered
-      metadata, default context, and task templates.\n7. Write the generated YAML
-      content to `PROJECT_PLAN.yaml`.\n8. Print a confirmation message indicating
-      successful creation.\n9. (Optional) Add prompts or options to allow the user
-      to confirm/override detected metadata or choose task templates.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 3
-      - 4
-    completion_date:
-  - id: 23
-    title: Fix AppFooter TypeError related to Binding objects
-    description: "**Plan:**\n1. Modified `src/metsuke/tui/widgets.py` -> `AppFooter.__init__`.\n
-      2. Updated the method to correctly process both `Binding` objects and legacy
-      tuples passed in the `bindings` list.\n3. This resolved a `TypeError` encountered
-      when the AppFooter tried to get the length of a `Binding` object.\n"
-    status: Done
-    priority: high
-    dependencies:
-      - 9
-    completion_date:
-  - id: 24
-    title: Fix PlanSelectionScreen AttributeError (cursor_row)
-    description: "**Plan:**\n1. Located the `AttributeError: can't set attribute 'cursor_row'`
-      in `src/metsuke/tui/screens.py` -> `PlanSelectionScreen.compose`.\n2. Moved
-      the logic for setting the initial `cursor_row` for the `DataTable` from the
-      `compose` method to a new `on_mount` method.\n3. Ensured the table is mounted
-      before attempting to set the cursor position.\n"
-    status: Done
-    priority: high
-    dependencies:
-      - 9
-    completion_date:
-  - id: 25
-    title: Fix PlanSelectionScreen MarkupError on focus indicator
-    description: "**Plan:**\n1. Addressed a `MarkupError: closing tag '[/b]' ... doesn't
-      match` when rendering the focus indicator `>` in `PlanSelectionScreen`'s `DataTable`.\n
-      2. Modified the code to explicitly create a `rich.text.Text` object using `Text.from_markup(\"\
-      [b]>[/b]\")` instead of passing the raw string.\n3. Imported `Text` from `rich.text`.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 9
-    completion_date:
-  - id: 26
-    title: Diagnose unresponsive Enter key in PlanSelectionScreen
-    description: "**Plan:**\n1. Investigated why the Enter key was not triggering
-      plan selection in the modal `PlanSelectionScreen`.\n2. Added logging to `action_select_plan`
-      to confirm it wasn't being called.\n3. Added an `on_key` handler and focus logging
-      in `on_mount` to the screen.\n4. Determined the issue was likely related to
-      the modal screen structure or focus handling.\n5. Decided to abandon the modal
-      approach and refactor the UI (Task 27) instead of further debugging the modal.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 24
-      - 25
-    completion_date:
-  - id: 27
-    title: 'Refactor TUI: Integrate Plan Selection into Main View'
-    description: "**Plan:**\n1. Modify `src/metsuke/tui/app.py` (`TaskViewer`).\n
-      2. Add state variable `selecting_plan: var[bool]`.\n3. Add a new `DataTable`
-      with `id=\"plan-selection-table\"` to `compose`, initially hidden via CSS (`display:
-      none`).\n4. Implement `watch_selecting_plan` to toggle visibility of `#dashboard`,
-      `#task-table`, and `#plan-selection-table`.\n5. Implement `_populate_plan_selection_table`
-      method to fill the new table with plan data.\n6. Rewrite `action_open_plan_selection`
-      to set `selecting_plan = True`, populate and focus the new table.\n7. Implement/Modify
-      `on_key` to handle Enter/Escape only when `selecting_plan` is True, calling
-      `switch_focus_plan` or reverting the view.\n8. Ensure `switch_focus_plan` sets
-      `selecting_plan = False` after successful switching.\n9. Delete the `PlanSelectionScreen`
-      class from `src/metsuke/tui/screens.py`.\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 9
-      - 26
-    completion_date:
-  - id: 28
-    title: Implement `metsuke update-plan` command for schema migration
-    description: "**Plan:**\n1. Define the \"target\" schema based on the current
-      Pydantic models (`src/metsuke/models.py`) and the `init` command's template.
-      Identify key missing fields in older formats (e.g., top-level `focus`, task-level
-      `completion_date`).\n2. Add a new `update-plan` command to `src/metsuke/cli.py`
-      that accepts an optional plan file path or directory path as an argument. If
-      no path is given, it should operate on the current focus plan or default plan.\n
-      3. Implement the command logic:\n    a. Load the specified YAML file(s) using
-      a method that might need to be more lenient initially (e.g., load raw dict first
-      before Pydantic validation, or use `model_validate` with error handling for
-      missing fields).\n    b. Check for the presence of required fields (`focus`,
-      `completion_date`).\n    c. If fields are missing, add them with appropriate
-      default values (`focus: true` for single files or the first found, `completion_date:
-      null` for tasks).\n    d. Potentially perform other necessary transformations
-      if the schema differs in more complex ways in the future.\n    e. Validate the
-      *modified* data against the current `Project` Pydantic model.\n    f. Save the
-      updated plan back to the original file using `core.save_plan`.\n    g. Provide
-      clear feedback to the user about which files were checked and updated.\n4. Add
-      unit tests for the `update-plan` command, covering different scenarios (file
-      already up-to-date, file missing fields, invalid file).\n"
-    status: Done
-    priority: medium
-    dependencies:
-      - 5
-      - 7
-      - 22
-    completion_date: 2025-04-22T11:30:44Z
-  - id: 29
-    title: Enhance TUI Visuals and Layout
-    description: "**Plan:**\n1.  **Title/Author:** Modify `TitleDisplay` widget (`widgets.py`)
-      to display \"Metsuke by Avocado\". Apply styling (e.g., boldness, theme colors
-      like `$primary`) to the main title \"Metsuke\". Consider making the title text
-      larger if easily achievable via styling.\n2.  **Widget Colors:**\n    a.  Modify
-      `TaskProgress` widget (`widgets.py`) to use theme colors (e.g., `$success`,
-      `$warning`, `$error`) when displaying task status counts (Done, In Progress,
-      Blocked, Pending).\n    b.  Modify `DependencyStatus` widget (`widgets.py`)
-      to use theme colors for key metrics like \"Ready to Work\" (`$success`) and
-      \"Blocked by Deps\" (`$error`). Improve formatting of \"Next Task\".\n    c.\
-      \  Modify `ProjectInfo` widget (`widgets.py`) to use prominent theme colors
-      (e.g., `$accent`) for the displayed project name and version.\n"
-    status: Done
-    priority: low
-    dependencies:
-      - 9
-    completion_date: 2025-04-22T11:30:44Z
+- id: 1
+  title: Set up initial project structure
+  description: "**Plan:**
+
+    1. Create base directories: `src/metsuke`, `tests`, `docs`.
+
+    \ 2. Create basic configuration files: `.gitignore`, `pyproject.toml`, `LICENSE`.
+
+    \ 3. Create initial `README.md`.
+
+    4. Create placeholder Python files: `__init__.py`, `__main__.py`, `cli.py`, `core.py`, `models.py`, `exceptions.py`.
+
+    5. Create placeholder test and docs files.\n"
+  status: Done
+  priority: high
+  dependencies: []
+  completion_date:
+- id: 2
+  title: Implement plan loading and basic parsing
+  description: "**Plan:**
+
+    1. Define initial Pydantic models in `models.py` for `Task` and `Project` based on the YAML structure.
+
+    2. Implement a function in `core.py` to load a specified YAML file using `PyYAML`.
+
+    3. Parse the loaded YAML data into the Pydantic models.
+
+    4. Add basic error handling for file not found or YAML parsing errors in `exceptions.py` and `core.py`.\n"
+  status: Done
+  priority: high
+  dependencies:
+  - 1
+  completion_date:
+- id: 3
+  title: Implement basic CLI - Show project info
+  description: "**Plan:**
+
+    1. Set up the main `click` group in `__main__.py`.
+
+    \ 2. Add a `show-info` command in `cli.py`.
+
+    3. This command should use `core.py` to load the `PROJECT_PLAN.yaml` (default path).
+
+    4. Display the project name, version, and context loaded from the plan file.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 2
+  completion_date:
+- id: 4
+  title: Implement basic CLI - List tasks
+  description: "**Plan:**
+
+    1. Add a `list-tasks` command in `cli.py`.
+
+    2. This command should load the plan using `core.py`.
+
+    3. Iterate through the `tasks` list from the loaded data.
+
+    4. Display each task's ID, title, and status in a readable format.
+
+    5. Add options to filter tasks (e.g., by status) later.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 2
+  completion_date:
+- id: 5
+  title: Implement core library API access
+  description: "**Plan:**
+
+    1. Refine the loading function in `core.py` to be easily usable as a library function (e.g., `load_plan(filepath)` returning the `Project` Pydantic object).
+
+    2. Expose necessary classes/functions (like `load_plan`, `Project`, `Task`, custom exceptions) in `src/metsuke/__init__.py`.
+
+    3. Add basic docstrings explaining how to use the library function.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 2
+  completion_date:
+- id: 6
+  title: Set up testing framework and initial test
+  description: "**Plan:**
+
+    1. Add `pytest` to `dev` dependencies in `pyproject.toml`.
+
+    \ 2. Create a basic test file in `tests/`, e.g., `test_core.py`.
+
+    3. Write a first test case to load the `PROJECT_PLAN.yaml` using the `core.py` function and assert that the project name is correctly parsed.
+
+    4. Configure `pytest` (if needed, e.g., via `pyproject.toml` or `pytest.ini`).\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 2
+  - 5
+  completion_date:
+- id: 7
+  title: Implement plan schema validation
+  description: "**Plan:**
+
+    1. Enhance the Pydantic models in `models.py` with more specific types and validation rules (e.g., `status` must be one of the allowed values, `dependencies` must be a list of integers).
+
+    2. Ensure the loading function in `core.py` raises validation errors (e.g., `pydantic.ValidationError`) if the YAML file doesn't match the schema.
+
+    3. Update CLI commands (`show-info`, `list-tasks`) to gracefully handle and report validation errors.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 2
+  completion_date:
+- id: 8
+  title: Add Optional TUI Dependencies
+  description: "**Plan:**
+
+    1. Define an optional dependency group `[tui]` in `pyproject.toml` under `[project.optional-dependencies]`.
+
+    2. Add `textual`, `watchdog`, and `pyperclip` to this `tui` group.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 1
+  completion_date:
+- id: 9
+  title: Structure TUI Code within Package
+  description: "**Plan:**
+
+    1. Create the directory `src/metsuke/tui/`.
+
+    2. Create `src/metsuke/tui/__init__.py`.
+
+    3. Refactor the components of `Metsuke.py` into logical modules within `src/metsuke/tui/` (e.g., `app.py`, `widgets.py`, `screens.py`).
+
+    \ 4. Move the CSS definition into `app.py` or a separate `styles.py`.\n"
+  status: Done
+  priority: high
+  dependencies:
+  - 1
+  completion_date:
+- id: 10
+  title: Integrate TUI with Core Data Loading
+  description: "**Plan:**
+
+    1. Modify the TUI's data loading mechanism (`_load_data` in `src/metsuke/tui/app.py`).
+
+    2. Remove direct `yaml.safe_load` logic from TUI.
+
+    3. Import and use `load_plan` function from `src/metsuke/core.py` (requires Task 2/5).
+
+    4. Adapt TUI to use Pydantic models returned by `load_plan`.
+
+    5. Handle `PlanLoadingError` / `PlanValidationError` from `core.py`.\n"
+  status: Done
+  priority: high
+  dependencies:
+  - 2
+  - 5
+  - 9
+  completion_date:
+- id: 11
+  title: Add 'metsuke tui' CLI Subcommand
+  description: "**Plan:**
+
+    1. In `src/metsuke/cli.py`, create `run_tui()` function.
+
+    \ 2. Import `TaskViewer` from `src/metsuke/tui/app.py`.
+
+    3. Instantiate and run `TaskViewer` app.
+
+    4. Add check for optional dependencies (`textual`, `watchdog`, `pyperclip`).
+
+    5. In `src/metsuke/__main__.py`, add `run_tui` as a command to the main `click` group.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 9
+  - 8
+  completion_date:
+- id: 12
+  title: Refactor TUI Logging Integration
+  description: "**Plan:**
+
+    1. Review logging setup in `src/metsuke/tui/app.py`.
+
+    \ 2. Ensure logger names are hierarchical (e.g., `metsuke.tui`).
+
+    3. Use an isolated logger for TUI to avoid conflicts.
+
+    4. Ensure `TuiLogHandler` functions correctly.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 9
+  completion_date:
+- id: 13
+  title: Update Documentation for TUI Feature
+  description: "**Plan:**
+
+    1. Add TUI section to `README.md`.
+
+    2. Explain installation (`pip install metsuke[tui]`).
+
+    3. Document the `metsuke tui` command.
+
+    4. Describe TUI features/usage.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 8
+  - 11
+  completion_date:
+- id: 14
+  title: Fix TUI Frame Rendering Glitch
+  description: "**Plan:**
+
+    1. Investigate why some borders/frames in the TUI do not extend fully to the edges of the terminal screen.
+
+    2. Identify the specific widgets or containers causing the gaps.
+
+    3. Adjust Textual CSS or widget parameters in `src/metsuke/tui/` to ensure frames cover the intended area.
+
+    4. Test the fix on different terminal sizes.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 9
+  completion_date:
+- id: 15
+  title: Enhance README with Collaboration Benefits
+  description: "**Plan:**
+
+    1. Identify Sections: Review `README.md` and decide where to add benefits.
+
+    2. Draft Content - Human Benefits: Clarity, tracking, context mgmt, reduced ambiguity, verification.
+
+    3. Draft Content - AI Benefits: Structured state, clear tasks, context access, better suggestions, reduced deviation.
+
+    \ 4. Draft Content - Collaboration Synergy: Shared understanding, less miscommunication, predictable AI, easier review.
+
+    5. Draft Content - Performance/Efficiency: Faster AI onboarding, less clarification, focused execution, higher quality.
+
+    6. Integrate: Merge drafted content into `README.md`.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 1
+  completion_date:
+- id: 16
+  title: Enhance TUI StatusBar Display
+  description: "**Plan:**
+
+    1. Locate the `StatusBar` widget definition (expected in `src/metsuke/tui/widgets.py` or `app.py` after Task 9).
+
+    2. Modify the `update_time` method.
+
+    3. Change `strftime` format to include Year-Month-Day (e.g., `\"%Y-%m-%d %H:%M:%S\"`).
+
+    4. Adjust layout logic if needed for the longer string.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 9
+  completion_date:
+- id: 17
+  title: Add Collaboration Example to README
+  description: "**Plan:**
+
+    1. Location: Identify best place in README (e.g., \" Why Metsuke?\" or new \"Example Workflow\" section).
+
+    2. Draft Example: Create dialogue snippet showing task ID reference and AI dependency check.
+
+    3. Integrate: Add drafted example to README.md.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 15
+  completion_date:
+- id: 18
+  title: Add Emojis to README for Visual Appeal
+  description: "**Plan:**
+
+    1. Review Sections: Identify headings/points in README for emojis.
+
+    2. Select Emojis: Choose relevant emojis (✨, 🤝, 🧑‍💻, 🤖, 👍, 💡, 📦, ▶️, 🛠️, 📄).
+
+    3. Draft Placement: Decide exact insertion points.
+
+    4. Integrate: Modify README.md, ensuring readability.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 15
+  - 17
+  completion_date:
+- id: 19
+  title: Fix TUI Log Handler Threading Issue on Exit
+  description: "**Plan:**
+
+    1. Open `src/metsuke/tui/handlers.py`.
+
+    2. Locate the `TuiLogHandler` class and its `emit` method.
+
+    3. Change `self.log_widget.app.call_from_thread(self.log_widget.write, msg)` to `self.log_widget.write(msg)`.\n"
+  status: Done
+  priority: high
+  dependencies:
+  - 9
+  - 12
+  completion_date:
+- id: 20
+  title: Restore/Fix Author Info in TUI StatusBar
+  description: "**Plan:**
+
+    1. Investigate `src/metsuke/tui/widgets.py`, specifically the `StatusBar` class.
+
+    2. Ensure the author string (\"Avocado\") is correctly defined and included in the `self.update(...)` call within `update_time`.
+
+    \ 3. Verify the layout logic correctly positions the author string alongside the time, preventing it from being pushed off-screen or overwritten.
+
+    4. Check the `StatusBar` integration in `src/metsuke/tui/app.py` (`compose` method) to ensure it's correctly added and displayed.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 9
+  completion_date: 2025-04-22T11:30:44Z
+- id: 21
+  title: Remove Redundant Command Palette Hint from HelpScreen
+  description: "**Plan:**
+
+    1. Modify the `HelpScreen` class definition in `src/metsuke/tui/screens.py`.
+
+    \ 2. In the `compose` method, locate the `Static` widget displaying key bindings.
+
+    \ 3. Remove the line `\" Ctrl+P : Command Palette\"` from the string content of that `Static` widget.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 9
+  completion_date:
+- id: 22
+  title: Implement 'metsuke init' command for initial plan generation
+  description: "**Plan:**
+
+    1. Add a new `init` command to `src/metsuke/cli.py` and register it in `src/metsuke/__main__.py`.
+
+    2. Implement logic within the `init` command to check if `PROJECT_PLAN.yaml` already exists. If so, print a warning and exit.
+
+    3. Add functionality to scan `pyproject.toml` (primarily) and potentially other files (e.g., `.git/config`, `README.md`) for project name and version. Use placeholders if not found.
+
+    4. Define a default `context` string template.
+
+    \ 5. Define a default list of initial `Task` templates (e.g., setup, test setup, documentation).
+
+    6. Construct the full YAML content string using the gathered metadata, default context, and task templates.
+
+    7. Write the generated YAML content to `PROJECT_PLAN.yaml`.
+
+    8. Print a confirmation message indicating successful creation.
+
+    9. (Optional) Add prompts or options to allow the user to confirm/override detected metadata or choose task templates.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 3
+  - 4
+  completion_date:
+- id: 23
+  title: Fix AppFooter TypeError related to Binding objects
+  description: "**Plan:**
+
+    1. Modified `src/metsuke/tui/widgets.py` -> `AppFooter.__init__`.
+
+    \ 2. Updated the method to correctly process both `Binding` objects and legacy tuples passed in the `bindings` list.
+
+    3. This resolved a `TypeError` encountered when the AppFooter tried to get the length of a `Binding` object.\n"
+  status: Done
+  priority: high
+  dependencies:
+  - 9
+  completion_date:
+- id: 24
+  title: Fix PlanSelectionScreen AttributeError (cursor_row)
+  description: "**Plan:**
+
+    1. Located the `AttributeError: can't set attribute 'cursor_row'` in `src/metsuke/tui/screens.py` -> `PlanSelectionScreen.compose`.
+
+    2. Moved the logic for setting the initial `cursor_row` for the `DataTable` from the `compose` method to a new `on_mount` method.
+
+    3. Ensured the table is mounted before attempting to set the cursor position.\n"
+  status: Done
+  priority: high
+  dependencies:
+  - 9
+  completion_date:
+- id: 25
+  title: Fix PlanSelectionScreen MarkupError on focus indicator
+  description: "**Plan:**
+
+    1. Addressed a `MarkupError: closing tag '[/b]' ... doesn't match` when rendering the focus indicator `>` in `PlanSelectionScreen`'s `DataTable`.
+
+    \ 2. Modified the code to explicitly create a `rich.text.Text` object using `Text.from_markup(\"[b]>[/b]\")` instead of passing the raw string.
+
+    3. Imported `Text` from `rich.text`.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 9
+  completion_date:
+- id: 26
+  title: Diagnose unresponsive Enter key in PlanSelectionScreen
+  description: "**Plan:**
+
+    1. Investigated why the Enter key was not triggering plan selection in the modal `PlanSelectionScreen`.
+
+    2. Added logging to `action_select_plan` to confirm it wasn't being called.
+
+    3. Added an `on_key` handler and focus logging in `on_mount` to the screen.
+
+    4. Determined the issue was likely related to the modal screen structure or focus handling.
+
+    5. Decided to abandon the modal approach and refactor the UI (Task 27) instead of further debugging the modal.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 24
+  - 25
+  completion_date:
+- id: 27
+  title: 'Refactor TUI: Integrate Plan Selection into Main View'
+  description: "**Plan:**
+
+    1. Modify `src/metsuke/tui/app.py` (`TaskViewer`).
+
+    \ 2. Add state variable `selecting_plan: var[bool]`.
+
+    3. Add a new `DataTable` with `id=\"plan-selection-table\"` to `compose`, initially hidden via CSS (`display: none`).
+
+    4. Implement `watch_selecting_plan` to toggle visibility of `#dashboard`, `#task-table`, and `#plan-selection-table`.
+
+    5. Implement `_populate_plan_selection_table` method to fill the new table with plan data.
+
+    6. Rewrite `action_open_plan_selection` to set `selecting_plan = True`, populate and focus the new table.
+
+    7. Implement/Modify `on_key` to handle Enter/Escape only when `selecting_plan` is True, calling `switch_focus_plan` or reverting the view.
+
+    8. Ensure `switch_focus_plan` sets `selecting_plan = False` after successful switching.
+
+    9. Delete the `PlanSelectionScreen` class from `src/metsuke/tui/screens.py`.\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 9
+  - 26
+  completion_date:
+- id: 28
+  title: Implement `metsuke update-plan` command for schema migration
+  description: "**Plan:**
+
+    1. Define the \"target\" schema based on the current Pydantic models (`src/metsuke/models.py`) and the `init` command's template. Identify key missing fields in older formats (e.g., top-level `focus`, task-level `completion_date`).
+
+    2. Add a new `update-plan` command to `src/metsuke/cli.py` that accepts an optional plan file path or directory path as an argument. If no path is given, it should operate on the current focus plan or default plan.
+
+    \ 3. Implement the command logic:
+
+    \    a. Load the specified YAML file(s) using a method that might need to be more lenient initially (e.g., load raw dict first before Pydantic validation, or use `model_validate` with error handling for missing fields).
+
+    \    b. Check for the presence of required fields (`focus`, `completion_date`).
+
+    \    c. If fields are missing, add them with appropriate default values (`focus: true` for single files or the first found, `completion_date: null` for tasks).
+
+    \    d. Potentially perform other necessary transformations if the schema differs in more complex ways in the future.
+
+    \    e. Validate the *modified* data against the current `Project` Pydantic model.
+
+    \    f. Save the updated plan back to the original file using `core.save_plan`.
+
+    \    g. Provide clear feedback to the user about which files were checked and updated.
+
+    4. Add unit tests for the `update-plan` command, covering different scenarios (file already up-to-date, file missing fields, invalid file).\n"
+  status: Done
+  priority: medium
+  dependencies:
+  - 5
+  - 7
+  - 22
+  completion_date: 2025-04-22T11:30:44Z
+- id: 29
+  title: Enhance TUI Visuals and Layout
+  description: "**Plan:**
+
+    1.  **Title/Author:** Modify `TitleDisplay` widget (`widgets.py`) to display \"Metsuke by Avocado\". Apply styling (e.g., boldness, theme colors like `$primary`) to the main title \"Metsuke\". Consider making the title text larger if easily achievable via styling.
+
+    2.  **Widget Colors:**
+
+    \    a.  Modify `TaskProgress` widget (`widgets.py`) to use theme colors (e.g., `$success`, `$warning`, `$error`) when displaying task status counts (Done, In Progress, Blocked, Pending).
+
+    \    b.  Modify `DependencyStatus` widget (`widgets.py`) to use theme colors for key metrics like \"Ready to Work\" (`$success`) and \"Blocked by Deps\" (`$error`). Improve formatting of \"Next Task\".
+
+    \    c.  Modify `ProjectInfo` widget (`widgets.py`) to use prominent theme colors (e.g., `$accent`) for the displayed project name and version.\n"
+  status: Done
+  priority: low
+  dependencies:
+  - 9
+  completion_date: 2025-04-22T11:30:44Z
 focus: true

@@ -3,6 +3,8 @@
 
 import yaml
 from ruamel.yaml import YAML # Import ruamel.yaml
+# from ruamel.yaml.scalarstring import LiteralScalarString # Remove or comment out this import
+from ruamel.yaml.scalarstring import FoldedScalarString # Add or ensure this import exists
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple # Add new types
 import logging # Add logging
@@ -17,6 +19,41 @@ from .exceptions import PlanLoadingError, PlanValidationError
 DEFAULT_PLAN_FILENAME = "PROJECT_PLAN.yaml"
 PLAN_FILE_PATTERN = "PROJECT_PLAN_*.yaml"
 PLANS_DIR_NAME = "plans"
+
+# --- Template definitions moved from cli.py ---
+DEFAULT_PLAN_FILENAME_FOR_TEMPLATE = "PROJECT_PLAN.yaml" 
+project_name_placeholder = "Your Project Name" 
+collaboration_guide_template = f"""\
+# {DEFAULT_PLAN_FILENAME_FOR_TEMPLATE} - {project_name_placeholder} Project
+# -------------------- Collaboration Usage --------------------
+# This file serves as the primary planning and tracking document for {project_name_placeholder}.
+# AI assistants should primarily interact with the plan file where 'focus: true' is set.
+#
+# As the AI assistant, I will adhere to the following process for planning:
+#   1. Engage in an initial discussion phase (e.g., INNOVATE mode) to fully understand project goals, context, and constraints before modifying this plan.
+#   2. Summarize key discussion points, decisions, and rationale in a designated document (e.g., `docs/discussion_log.md`) for transparency and future reference.
+#   3. Propose an initial, high-level task breakdown in this file (PLAN mode).
+#   4. Based on user feedback, iteratively refine and decompose tasks into more specific, granular, and actionable steps until the plan is sufficiently detailed for execution.
+#   5. Ensure each task has a clear description, status, priority, and dependencies correctly mapped.
+#   6. Maintain and update the status of each task (pending, in_progress, Done).
+#   7. Automatically record the 'completion_date' when a task is marked 'Done'.
+#   8. Refer to these tasks when discussing development steps with you.
+#   9. Request explicit confirmation (e.g., "ENTER EXECUTE MODE" or similar) before starting the implementation of any task described herein. Upon receiving confirmation, immediately update the task status to `in_progress` before proceeding.
+#  10. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
+# Please keep the context and task list updated to reflect the current project state.
+# The 'focus: true' flag indicates the currently active plan for AI interaction.
+# -------------------------------------------------------------
+# Defines project metadata and tasks.
+#
+# Recommended values:
+#   focus: [true, false] (Only one plan file should have true)
+#   status: ['pending', 'in_progress', 'Done', 'blocked']
+#   priority: ['low', 'medium', 'high']
+#   dependencies: List of task IDs this task depends on. Empty list means no dependencies.
+#   completion_date: ISO 8601 datetime string or null (Automatically set when status becomes 'Done').
+#   context: Optional string containing project context/notes (displays in Help '?').
+"""
+# --- End Template definitions ---
 
 # Logger for core functions
 logger = logging.getLogger(__name__)
@@ -62,6 +99,7 @@ def find_plan_files(base_dir: Path, explicit_path: Optional[Path]) -> List[Path]
 def load_plans(plan_files: List[Path]) -> Dict[Path, Optional[Project]]:
     """Loads and validates multiple plan files."""
     loaded_plans: Dict[Path, Optional[Project]] = {}
+    yaml_loader = YAML(typ='rt') # Use ruamel.yaml round-trip loader
     for filepath in plan_files:
         if not filepath.is_file():
             logger.error(f"Plan file vanished before loading: {filepath}")
@@ -71,7 +109,7 @@ def load_plans(plan_files: List[Path]) -> Dict[Path, Optional[Project]]:
             logger.debug(f"Attempting to load plan: {filepath}")
             with open(filepath, "r", encoding="utf-8") as f:
                 # Using standard yaml loader here is fine, ruamel is for saving
-                data: Dict[Any, Any] = yaml.safe_load(f)
+                data = yaml_loader.load(f) # <-- Use ruamel loader
                 if data is None:
                     raise PlanLoadingError(f"Plan file is empty: {filepath.resolve()}")
             project_data = Project.model_validate(data)
@@ -113,8 +151,13 @@ def save_plan(project: Project, filepath: Path) -> bool:
                     else:
                         break # Stop at first non-comment/non-empty line
         except FileNotFoundError:
-            logger.debug(f"File {filepath} not found, creating new file (no header to preserve).")
-            pass # File doesn't exist yet, no header to preserve
+            logger.debug(f"File {filepath} not found, creating new file with default header.")
+            # Assign default header lines when creating a new file
+            # Split the template string into lines, ensuring each line ends with a newline
+            header_lines = [line + '\n' for line in collaboration_guide_template.splitlines()]
+            # Optionally, ensure there's a blank line separating header from YAML content
+            if header_lines and not header_lines[-1].endswith('\n\n'):
+                 header_lines.append('\n') 
         except Exception as e:
             logger.warning(f"Could not read header from {filepath}: {e}") # Log warning but proceed
 
@@ -122,14 +165,27 @@ def save_plan(project: Project, filepath: Path) -> bool:
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
         # Use ruamel.yaml for round-trip safety
-        yaml_saver = YAML(typ='safe', pure=True)
+        yaml_saver = YAML(typ='rt') # Change back to this
+        # yaml_saver.default_style = '|' # Ensure this is removed
         yaml_saver.indent(mapping=2, sequence=4, offset=2)
-        yaml_saver.preserve_quotes = True
+        # yaml_saver.preserve_quotes = True # Ensure this remains commented/removed
         yaml_saver.width = 1000 # Prevent line wrapping
 
         # Convert Pydantic model to dict, handling datetime
         # Use model_dump for Pydantic v2
         project_dict = project.model_dump(mode='python') # mode='python' often helps with types like datetime
+
+        # --- Convert specific fields to Folded style --- # Modify this block
+        if isinstance(project_dict.get('context'), str) and project_dict['context']:
+            # project_dict['context'] = LiteralScalarString(project_dict['context'])
+            project_dict['context'] = FoldedScalarString(project_dict['context']) # Use Folded
+
+        if isinstance(project_dict.get('tasks'), list):
+            for task in project_dict['tasks']:
+                if isinstance(task.get('description'), str) and task['description']:
+                    # task['description'] = LiteralScalarString(task['description'])
+                    task['description'] = FoldedScalarString(task['description']) # Use Folded
+        # --- End conversion --- # Modify this block
 
         # Dump YAML data to an in-memory buffer
         yaml_string_buffer = io.StringIO()
