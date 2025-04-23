@@ -790,41 +790,28 @@ class TaskViewer(App):
                 pass # Ignore if task table itself is the problem
 
     # --- New method to populate plan selection table ---
-    def _populate_plan_selection_table(self) -> None: # No longer returns index
-        """Clears and refills the plan selection table."""
-        self.app_logger.info("Populating plan selection table.")
-        try:
-            table = self.query_one("#plan-selection-table", DataTable)
-            table.clear(columns=True)
-            # Define columns
-            table.add_column(" ", width=3) # Focus indicator column
-            table.add_column("Plan Name")
-            table.add_column("Display Path")
-            table.add_column("File Path")
-            table.cursor_type = "row"
+    def _populate_plan_selection_table(self) -> None:
+        table = self.query_one("#plan-selection-table", DataTable)
+        table.clear()
+        base_dir = Path.cwd()
+        for plan_path, project_data in self.all_plans.items():
+            relative_path_str = str(plan_path.relative_to(base_dir) if plan_path.is_relative_to(base_dir) else plan_path)
+            is_focus = project_data.focus if project_data else False
+            focus_indicator = Text.from_markup("[b]>[/b]") if is_focus else Text(" ")
 
-            if not self.all_plans:
-                 table.add_row("-", "[i red]No plans loaded[/]")
-                 return # Nothing more to do
+            if project_data is None:
+                # Handle load error - Use Text.from_markup
+                plan_name = Text.from_markup("[i red]Load Error[/i]") # Use Text object
+            else:
+                plan_name = project_data.project.name
 
-            sorted_paths = sorted(self.all_plans.keys())
-
-            for i, path in enumerate(sorted_paths):
-                plan = self.all_plans.get(path)
-                is_focused = (path == self.current_plan_path)
-                # Use Text object for indicator (already imported)
-                focus_indicator = Text.from_markup("[b]>[/b]") if is_focused else Text(" ")
-                name = plan.project.name if plan else "[i red]Load Error[/i]"
-                try:
-                     # Display path relative to CWD if possible
-                     display_path = str(path.relative_to(Path.cwd()))
-                except ValueError:
-                     display_path = str(path.name) # Fallback to just the filename
-
-                table.add_row(focus_indicator, name, display_path, str(path), key=str(path))
-
-        except Exception as e:
-             self.app_logger.error(f"Error populating plan selection table: {e}", exc_info=True)
+            table.add_row(
+                focus_indicator,
+                plan_name, # This will now be a Text object in case of error
+                relative_path_str,
+                str(plan_path.resolve()),
+                key=str(plan_path.resolve()) # Use full path as key
+            )
 
     # --- Modified switch_focus_plan ---
     def switch_focus_plan(self, target_path: Path) -> None:
