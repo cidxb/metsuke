@@ -401,9 +401,10 @@ def update_plan(path_spec: Optional[Path]):
                     validated_project = Project.model_validate(data)
                     # 7. If valid, save back using yaml_rt.dump()
                     try:
-                        project_dict_to_save = validated_project.model_dump(mode='python')
+                        # project_dict_to_save = validated_project.model_dump(mode='python') # REMOVE THIS LINE
                         yaml_string_buffer = io.StringIO()
-                        yaml_rt.dump(project_dict_to_save, yaml_string_buffer) # Dump validated data
+                        # yaml_rt.dump(project_dict_to_save, yaml_string_buffer) # Modify this line
+                        yaml_rt.dump(data, yaml_string_buffer) # Dump the modified 'data' object directly
                         yaml_content = yaml_string_buffer.getvalue()
 
                         with open(f_path, 'w', encoding='utf-8') as fp:
