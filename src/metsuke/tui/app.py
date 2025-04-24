@@ -565,22 +565,19 @@ class TaskViewer(App):
                     table = self.query_one("#task-table", DataTable)
                     table.clear(columns=True)
                     table.add_columns(
-                        "ID", "Title", "Prio", "Status", "Completed", "Deps"
+                        "ID", "Title", "Prio", "Status", "Deps"
                     )
                     table.fixed_columns = 1
                     for task in tasks:
                         deps_str = ", ".join(map(str, task.dependencies)) or "None"
                         status_styled = (
-                            f"[{self._get_status_color(task.status)}]{task.status}[/]"
-                        )
+                            f"[{self._get_status_color(task.status)}]{task.status}[/]")
                         priority_styled = f"[{self._get_priority_color(task.priority)}]{task.priority}[/]"
-                        completion_str = task.completion_date.strftime("%Y-%m-%d") if task.completion_date else "-"
                         table.add_row(
                             str(task.id),
                             task.title,
                             priority_styled,
                             status_styled,
-                            completion_str,
                             deps_str,
                             key=str(task.id),
                         )

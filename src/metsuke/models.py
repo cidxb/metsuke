@@ -6,7 +6,7 @@
 
 from typing import List, Optional, TypedDict, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 # --- Pydantic Models (Used by core.py for validation) ---
@@ -18,7 +18,18 @@ class Task(BaseModel):
     status: Literal['pending', 'in_progress', 'Done', 'blocked']
     priority: Literal['low', 'medium', 'high']
     dependencies: List[int] = Field(default_factory=list)
-    completion_date: Optional[datetime] = None
+    # --- Fields for time tracking (example) ---
+    time_spent_seconds: float = 0.0
+    # Note: current_session_start_time is intentionally not included here 
+    # as it's runtime state, not persisted.
+
+    # Optional: Add validators if needed
+    # @validator('status') # Remove incomplete validator
+    # def check_status(cls, v):
+    #     allowed_statuses = ['pending', 'in_progress', 'Done', 'blocked']
+    #     if v not in allowed_statuses:
+    #         raise ValueError(f'Status must be one of {allowed_statuses}')
+    #     return v
 
 
 class ProjectMeta(BaseModel):

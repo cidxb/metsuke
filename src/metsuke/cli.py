@@ -50,22 +50,22 @@ tasks_template = [
     {'id': 1, 'title': 'Set up initial project structure', 'description': '''**Plan:**
 1. Define directory layout (src, tests, docs, etc.).
 2. Initialize version control (e.g., git init).
-3. Create basic config files (.gitignore, pyproject.toml, etc.).''', 'status': 'pending', 'priority': 'high', 'dependencies': [], 'completion_date': None},
+3. Create basic config files (.gitignore, pyproject.toml, etc.).''', 'status': 'pending', 'priority': 'high', 'dependencies': []},
     {'id': 2, 'title': 'Define core data models/schemas', 'description': '''**Plan:**
 1. Identify key data structures.
-2. Implement using Pydantic, dataclasses, or similar.''', 'status': 'pending', 'priority': 'medium', 'dependencies': [1], 'completion_date': None},
+2. Implement using Pydantic, dataclasses, or similar.''', 'status': 'pending', 'priority': 'medium', 'dependencies': [1]},
     {'id': 3, 'title': 'Implement basic feature X', 'description': '''**Plan:**
 1. Define inputs and outputs.
 2. Implement core logic.
-3. Add basic error handling.''', 'status': 'pending', 'priority': 'medium', 'dependencies': [2], 'completion_date': None},
+3. Add basic error handling.''', 'status': 'pending', 'priority': 'medium', 'dependencies': [2]},
     {'id': 4, 'title': 'Set up testing framework', 'description': '''**Plan:**
 1. Choose testing framework (e.g., pytest).
 2. Add framework to dev dependencies.
-3. Create initial test file(s).''', 'status': 'pending', 'priority': 'low', 'dependencies': [1], 'completion_date': None},
+3. Create initial test file(s).''', 'status': 'pending', 'priority': 'low', 'dependencies': [1]},
     {'id': 5, 'title': 'Set up CI/CD pipeline', 'description': '''**Plan:**
 1. Choose CI/CD platform (e.g., GitHub Actions).
 2. Create basic workflow (lint, test).
-3. Configure triggers.''', 'status': 'pending', 'priority': 'low', 'dependencies': [1, 4], 'completion_date': None},
+3. Configure triggers.''', 'status': 'pending', 'priority': 'low', 'dependencies': [1, 4]},
 ] # KEEP THIS
 
 # Default plan filename
@@ -386,14 +386,15 @@ def update_plan(path_spec: Optional[Path]):
                 data.insert(0, 'focus', default_focus, comment="Indicates the currently active plan for AI interaction (only one file should be true).")
                 was_modified = True
 
-            # 5. Iterate through tasks, check for 'completion_date'
+            # --- Clean up removed fields (e.g., completion_date) --- # Add this block
             if 'tasks' in data and isinstance(data['tasks'], list):
-                for task in data['tasks']:
-                    if isinstance(task, dict) and 'completion_date' not in task:
-                        click.echo(f"  - Adding missing 'completion_date' to Task ID {task.get('id', 'N/A')} in {relative_path_str}")
-                        task['completion_date'] = None
+                for task_index, task in enumerate(data['tasks']): # Use enumerate for better logging if needed
+                    if isinstance(task, dict) and 'completion_date' in task:
+                        click.echo(f"  - Removing deprecated 'completion_date' from Task ID {task.get('id', f'at index {task_index}')} in {relative_path_str}")
+                        del task['completion_date']
                         was_modified = True
-            
+            # --- End cleanup ---
+
             if was_modified:
                 click.echo(f"Modifications made to {relative_path_str}. Validating and attempting save...")
                 # 6. Attempt to validate the *modified* dict with Project.model_validate
