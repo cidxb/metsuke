@@ -30,12 +30,14 @@ except ImportError:
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, VerticalScroll, Horizontal
-from textual.widgets import Header, Static, DataTable, ProgressBar, Log, Markdown
+from textual.widgets import Header, Static, DataTable, ProgressBar, Log, Markdown, Rule
 from textual.reactive import var
 from textual.screen import Screen
 from textual.binding import Binding
 from textual import events  # Added import
 from rich.text import Text  # Added import for plan selection table
+from textual.coordinate import Coordinate # ADD this import
+from textual import on # Correct import for decorator
 
 # Import from our TUI modules
 from .widgets import (
@@ -97,28 +99,76 @@ class TaskViewer(App):
         margin-bottom: 1;
     } */ /* HeaderInfo might not be a widget */
     Container#main-container { /* Style the main content area */
-        height: 1fr;
+        height: 1fr; /* Fill remaining vertical space */
+        layout: horizontal; 
+        border: thick $accent; /* ADD border here */
     }
-    #dashboard {
-        height: auto;
-        border: thick $accent; /* Restored border */
-        margin-bottom: 1; /* Restored margin */
-    }
-    #left-panel, #right-panel {
-        width: 1fr;
-        border: thick $accent; /* Restored border */
-        padding: 1; /* Restored padding */
-        height: auto;
+    #detail-panel {
+        width: 40%; /* Restore fixed width */
+        height: 100%; 
+        /* border-left: thick $accent; */ /* REMOVE border */
+        padding: 0 1;
+        display: block; /* Ensure it's always displayed */
+        overflow-y: auto; 
+        /* REMOVE layer, offset, transition, background */
+        /* layer: overlay; */
+        /* offset-x: 100%; */
+        /* transition: offset-x 500ms; */
+        /* background: $surface; */ 
     }
     #task-table {
-        height: 1fr;
-        border: thick $accent; /* Restored border */
+        height: 100%; 
+        width: 60%; /* Restore fixed width */
+        /* width: 100%; */ /* REMOVE full width */
+        /* border: thick $accent; */ /* REMOVE border */
     }
     #plan-selection-table {
-        height: 1fr; /* Occupy available space like task-table */
-        border: thick $accent;
-        display: none; /* Hide by default */
+        height: 100%; 
+        width: 60%; /* Restore fixed width */
+        /* width: 100%; */ /* REMOVE full width */
+        /* border: thick $accent; */ /* REMOVE border */
+        display: none; 
     }
+    #detail-title {
+        width: 100%;
+        height: auto;
+        margin-bottom: 1;
+        text-style: bold; 
+    }
+     #detail-status-prio, #detail-deps {
+        width: 100%;
+        height: auto;
+        margin-bottom: 1;
+    }
+    #detail-description {
+        width: 100%;
+        height: 1fr; /* Take remaining space */
+    }
+
+    /* Ensure dashboard is above main-container */
+    #dashboard {
+        height: 20; /* Keep fixed height */
+        layout: horizontal; 
+        /* border: thick $accent; */ /* REMOVE shared border */
+        /* gutter: 0 0; */ /* REMOVE invalid gutter property */
+        /* grid-size: 2; */ /* REMOVE grid property */
+        /* grid-columns: 1fr 1fr; */ /* REMOVE grid property */
+        /* align-vertical: bottom; */ /* REMOVE bottom alignment */
+        /* align-vertical: stretch; */ /* REMOVE invalid property */
+        /* margin-bottom: 1; */ /* Keep margin removed */
+    }
+    #left-panel, #right-panel { /* Combine rules again */
+        width: 1fr; 
+        padding: 1;
+        height: auto; /* Keep height auto */
+        border: thick $accent; /* RESTORE individual borders */
+        /* border-right: heavy $accent; */ /* REMOVE separator border */
+    }
+    /* REMOVE rule for separator */
+    /* #dashboard > Rule { 
+        border-left: thick $accent;
+        width: 1; 
+    } */
     /* Styles for widgets inside panels */
     TaskProgress {
         height: auto;
@@ -183,18 +233,22 @@ class TaskViewer(App):
     # Bindings moved from Metsuke.py
     BINDINGS = [
         # Add back 'q' for quitting, along with Ctrl+C
-        Binding("q", "quit", "Quit", show=True, priority=True), # Added back, NOW VISIBLE
-        Binding(
-            "ctrl+c", "quit", "Quit", priority=True, show=True
-        ),  # Kept Ctrl+C as visible primary
+        Binding("q", "quit", "Quit", show=True, priority=True),
+        Binding("ctrl+c", "quit", "Quit", priority=True, show=True),
         ("ctrl+l", "copy_log", "Copy Log"),
         ("ctrl+d", "toggle_log", "Toggle Log"),
-        ("ctrl+b", "open_plan_selection", "Select Plan"),  # Changed description
-        ("ctrl+p", "command_palette", "Palette"),  # Enable command palette
+        ("ctrl+b", "open_plan_selection", "Select Plan"),
+        # CHANGE space binding to toggle panel
+        Binding("space", "toggle_detail_panel", "Toggle Detail", show=True),
+        # REMOVE escape binding
+        # Binding("escape", "clear_detail", "Clear Detail", show=False),
         ("?", "show_help", "Help"),
         # Add new bindings for arrow keys (not shown in help, but used for switching)
         Binding("left", "previous_plan", "Prev Plan", show=False, priority=True),
         Binding("right", "next_plan", "Next Plan", show=False, priority=True),
+        # REMOVE manual cursor control bindings
+        # Binding("up", "cursor_up", "Cursor Up", show=False), 
+        # Binding("down", "cursor_down", "Cursor Down", show=False), 
         # Add other app-level bindings here (e.g., task manipulation later)
     ]
 
@@ -211,6 +265,8 @@ class TaskViewer(App):
     initial_plan_files: List[Path]
     # --- New state for plan selection view ---
     selecting_plan: var[bool] = var(False, init=False)
+    # --- State for detail panel ---
+    selected_task_for_detail: var[Optional[Task]] = var(None, init=False)
     # --- End new reactive variables ---
 
     # Class logger for the App itself
@@ -234,18 +290,28 @@ class TaskViewer(App):
         )
 
     def compose(self) -> ComposeResult:
-        # yield Header() # Removed Header widget for now
         yield TitleDisplay(id="title")
         yield ProjectInfo(id="project-info")
-        with Container(id="main-container"):
-            with Horizontal(id="dashboard"):
-                with VerticalScroll(id="left-panel"):
-                    yield TaskProgress(id="task-progress")
-                    yield PriorityBreakdown(id="priority-breakdown")
-                with VerticalScroll(id="right-panel"):
-                    yield DependencyStatus(id="dependency-status")
-            yield DataTable(id="task-table")
-            yield DataTable(id="plan-selection-table")  # Add plan selection table
+        # Dashboard is separate, above main content
+        with Horizontal(id="dashboard"): 
+            with VerticalScroll(id="left-panel"):
+                yield TaskProgress(id="task-progress")
+                yield PriorityBreakdown(id="priority-breakdown")
+            # Rule(orientation="vertical") # REMOVE Rule widget
+            with VerticalScroll(id="right-panel"):
+                yield DependencyStatus(id="dependency-status")
+        # Main container for table and details (fixed layout)
+        with Container(id="main-container"): 
+            # Tables are direct children now
+            yield DataTable(id="task-table") 
+            yield DataTable(id="plan-selection-table") # Still here, hidden by default
+            # Detail panel is also a direct child and always composed
+            with VerticalScroll(id="detail-panel"): 
+                yield Static("Task Details", id="detail-title") # Placeholder
+                yield Static("Status: - | Prio: -", id="detail-status-prio")
+                yield Static("Deps: -", id="detail-deps")
+                yield Markdown("", id="detail-description") # Start empty
+
         yield Log(id="log-view", max_lines=200, highlight=True)
         yield AppFooter(bindings=self.BINDINGS, id="app-footer")
 
@@ -277,7 +343,10 @@ class TaskViewer(App):
 
         # Focus the task table initially (if not selecting plan)
         if not self.selecting_plan:
-            self.query_one("#task-table").focus()
+            try:
+                self.query_one("#task-table").focus()
+            except Exception as e:
+                self.app_logger.error(f"Failed to focus task table initially: {e}")
 
     def on_unmount(self) -> None:
         """Called when the app is unmounted."""
@@ -287,6 +356,203 @@ class TaskViewer(App):
             tui_logger = logging.getLogger("metsuke.tui")
             tui_logger.removeHandler(self.tui_handler)
             self.tui_handler = None
+
+    # --- ADD Helper to Update Selected Task from Row Index ---
+    def _update_selected_task_from_row(self, row_index: Optional[int]) -> None:
+        """Finds the task for a given row index and updates the detail state."""
+        selected_task = None
+        if row_index is None:
+            self.app_logger.debug("Update from row: row_index is None.")
+            self.selected_task_for_detail = None
+            return
+
+        try:
+            table = self.query_one("#task-table", DataTable)
+            if 0 <= row_index < table.row_count:
+                # Use coordinate_to_cell_key to get the key for the cell at (row_index, 0)
+                # We only need the row_key part of the returned CellKey
+                cell_key = table.coordinate_to_cell_key(Coordinate(row_index, 0)) 
+                row_key = cell_key.row_key # Extract the RowKey
+
+                if row_key and row_key.value is not None:
+                    task_id_str = str(row_key.value)
+                    self.app_logger.debug(f"Update from row: Trying row {row_index}, key: {task_id_str}")
+                    
+                    # Find the task
+                    if self.current_plan_path and self.current_plan_path in self.all_plans:
+                        current_plan = self.all_plans[self.current_plan_path]
+                        if current_plan and current_plan.tasks:
+                            try:
+                                task_id = int(task_id_str)
+                                selected_task = next((task for task in current_plan.tasks if task.id == task_id), None)
+                                if selected_task:
+                                    self.app_logger.debug(f"Update from row: Found Task ID {task_id}")
+                                else:
+                                    self.app_logger.debug(f"Update from row: Key {task_id_str} not found in tasks.")
+                            except (ValueError, TypeError):
+                                self.app_logger.debug(f"Update from row: Could not convert key {task_id_str} to int.")
+                        else:
+                            self.app_logger.debug("Update from row: Current plan has no tasks.")
+                    else:
+                        self.app_logger.debug("Update from row: Current plan data unavailable.")
+                else:
+                    self.app_logger.debug(f"Update from row: Row {row_index} has invalid/None key from coordinate.")
+            else:
+                self.app_logger.debug(f"Update from row: Row index {row_index} out of bounds (0-{table.row_count-1}).")
+        except Exception as e:
+            self.app_logger.error(f"Error in _update_selected_task_from_row for index {row_index}: {e}", exc_info=True)
+        
+        # Update the state
+        self.selected_task_for_detail = selected_task
+
+    # --- RENAME _update_detail_panel to watch_selected_task_for_detail ---
+    # --- and modify to use the passed argument --- 
+    def watch_selected_task_for_detail(self, new_task: Optional[Task]) -> None:
+        """Watcher that updates the detail panel when selected_task_for_detail changes."""
+        self.app_logger.debug(f"Watcher triggered: selected_task_for_detail changed to ID {new_task.id if new_task else 'None'}")
+        try:
+            title_widget = self.query_one("#detail-title", Static)
+            status_prio_widget = self.query_one("#detail-status-prio", Static)
+            deps_widget = self.query_one("#detail-deps", Static)
+            desc_widget = self.query_one("#detail-description", Markdown)
+
+            # Use the new_task passed by the watcher
+            if new_task:
+                # Populate with task data
+                title_widget.update(f"ID {new_task.id}: {new_task.title}")
+                status_prio_widget.update(f"Status: [{self._get_status_color(new_task.status)}]{new_task.status}[/] | Prio: [{self._get_priority_color(new_task.priority)}]{new_task.priority}[/]")
+                deps_str = ", ".join(map(str, new_task.dependencies)) or "None"
+                deps_widget.update(f"Deps: {deps_str}")
+                desc_widget.update(new_task.description or "*No description provided.*") 
+            else:
+                # Show placeholder text
+                # Title depends on whether a row is actually selected or not
+                try:
+                    table = self.query_one("#task-table", DataTable)
+                    has_rows = table.row_count > 0
+                except Exception:
+                    has_rows = False # Default if table query fails
+                
+                if has_rows:
+                     title_widget.update("Task Details") # Generic title when valid row selected but task data missing
+                else:
+                     title_widget.update("No tasks loaded")
+                
+                status_prio_widget.update("Status: - | Prio: -")
+                deps_widget.update("Deps: -")
+                desc_widget.update("*Select a task row to view details.*") # Updated placeholder
+        except Exception as e:
+            self.app_logger.error(f"Error in watch_selected_task_for_detail: {e}", exc_info=True)
+
+    # --- ADD Event Handler for Task Table Cursor Movement ---
+    @on(DataTable.CellHighlighted, "#task-table")
+    def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted) -> None:
+        """Handle cursor movement in the task table to update the detail view."""
+        # Double-check the event source in case the selector isn't specific enough
+        if event.data_table.id != "task-table":
+            return
+
+        # Check if cursor_row is valid (not None)
+        # cursor_row = event.cursor_row # Direct access might be None if cursor is invalid
+        cursor_row = event.coordinate.row # Use coordinate which should be valid for highlight
+        if cursor_row is None:
+            self.app_logger.warning("CellHighlighted event received with None cursor_row.")
+            # Optionally clear the detail panel or handle as needed
+            # self._update_selected_task_from_row(None)
+            return
+            
+        self.app_logger.debug(f"Task table cursor highlighted row: {cursor_row}")
+        # Update the detail panel based on the highlighted row
+        self._update_selected_task_from_row(cursor_row)
+
+    # --- Modified initial load --- 
+    def _initial_load_and_focus(self) -> None:
+        """Loads initial plan files and determines the focus plan."""
+        self.app_logger.info("Performing initial load and focus management...")
+        try:
+            # Ensure core imports are available if not already module level
+            # from ..core import load_plans, manage_focus
+            # from datetime import datetime
+
+            loaded_plans = load_plans(self.initial_plan_files)
+            # --- Debug Logging Start ---
+            log_loaded_plans = {str(p): ("Project" if plan else "None") for p, plan in loaded_plans.items()}
+            self.app_logger.debug(f"_initial_load_and_focus: load_plans result: {log_loaded_plans}")
+
+            # manage_focus might save files if focus needs correction
+            updated_plans, focus_path = manage_focus(loaded_plans)
+
+            self.app_logger.debug(f"_initial_load_and_focus: manage_focus returned focus_path: {focus_path}")
+
+            self.all_plans = updated_plans  # Update reactive variable
+            self.current_plan_path = focus_path  # Update reactive variable
+            self.last_load_time = datetime.now()
+
+            self.app_logger.debug(f"_initial_load_and_focus: Set self.current_plan_path to: {self.current_plan_path}")
+            # --- Debug Logging End ---
+
+            if self.current_plan_path is None and any(
+                updated_plans.values()
+            ):  # Check if focus is None but plans exist
+                self.app_logger.error(
+                    "Failed to determine a focus plan during initial load, although valid plans exist."
+                )
+                # Display an error message in the UI? Maybe ProjectInfo?
+                # The update_ui call below will handle displaying an error state
+                self.notify(
+                    "Error: Could not set focus plan.",
+                    title="Load Error",
+                    severity="error",
+                )
+            elif self.current_plan_path is None:
+                self.app_logger.warning("No valid plans loaded or found.")
+                self.notify(
+                    "No valid plan files found or loaded.",
+                    title="Load Warning",
+                    severity="warning",
+                )
+
+            self.update_ui()  # Update UI with loaded data
+            # Update footer initially
+            try:
+                footer = self.query_one(AppFooter)
+                footer.current_plan_path = self.current_plan_path
+                footer.update_info()  # Update with time and initial plan
+            except Exception as e:
+                self.app_logger.error(f"Error setting initial footer info: {e}")
+
+            self.app_logger.info("Initial load and focus management complete.")
+
+        except Exception as e:
+            self.app_logger.exception(
+                "Critical error during initial load and focus management."
+            )
+            # Display error to user
+            self.notify(
+                f"Critical error loading plans: {e}",
+                title="Load Error",
+                severity="error",
+                timeout=10,
+            )
+            # Set state to indicate error
+            self.all_plans = {}
+            self.current_plan_path = None
+            self.update_ui()  # Try to update UI to show empty state/error
+
+        # Start file observer AFTER initial load
+        self.start_file_observer()
+
+        # Focus the task table initially (if not selecting plan)
+        if not self.selecting_plan:
+            try:
+                self.query_one("#task-table").focus()
+            except Exception as e:
+                self.app_logger.error(f"Failed to focus task table initially: {e}")
+
+        # Trigger detail update for the initially selected row (row 0)
+        # Ensure this happens AFTER update_ui has populated the table
+        self.app_logger.debug("Triggering initial detail update for row 0.")
+        self._update_selected_task_from_row(0)
 
     def start_file_observer(self) -> None:
         """Starts the watchdog file observer based on loaded plans."""
@@ -730,6 +996,27 @@ class TaskViewer(App):
             self.app_logger.info(
                 f"Log view display toggled {'on' if log_widget.display else 'off'}."
             )
+            # --- ADD Focus Management ---
+            if not log_widget.display: # If log was just hidden
+                try:
+                    task_table = self.query_one("#task-table")
+                    if task_table.display: # Check if task table is visible
+                        task_table.focus()
+                        self.app_logger.debug("Focus returned to task table after hiding log.")
+                    else:
+                         # Maybe focus plan table if that's visible?
+                         try:
+                              plan_table = self.query_one("#plan-selection-table")
+                              if plan_table.display:
+                                   plan_table.focus()
+                                   self.app_logger.debug("Focus set to plan table after hiding log.")
+                         except Exception:
+                              self.app_logger.warning("Could not focus task or plan table after hiding log.")
+
+                except Exception as e:
+                    self.app_logger.error(f"Error returning focus after hiding log: {e}")
+            # --- END Focus Management ---
+
         except Exception as e:
             self.app_logger.error(f"Error toggling log display: {e}")
 
@@ -749,48 +1036,55 @@ class TaskViewer(App):
             # Now, set the state to True, which will trigger the watch method.
             self.selecting_plan = True
 
-    # --- New watch method for UI switching ---
+    # --- Modified watch method for UI switching ---
     def watch_selecting_plan(self, selecting: bool) -> None:
         """Toggle visibility of widgets based on plan selection state."""
         self.app_logger.info(f"Watch selecting_plan: {selecting}")
         try:
+            # Get references to all relevant panels/tables
             dashboard = self.query_one("#dashboard")
             task_table = self.query_one("#task-table", DataTable)
+            detail_panel = self.query_one("#detail-panel") # Get detail panel reference
             plan_table = self.query_one("#plan-selection-table", DataTable)
             footer = self.query_one(AppFooter)
 
-            # Show/hide main content panels
+            # Show/hide dashboard and main content panels
             dashboard.display = not selecting
-            task_table.display = not selecting
-            plan_table.display = selecting
+            task_table.display = not selecting # Hide task table when selecting
+            detail_panel.display = not selecting # Hide detail panel when selecting
+            plan_table.display = selecting # Show plan table when selecting
 
             # Update footer and set focus
             if selecting: # Switching TO plan selection
                 self.app_logger.info("Switching to plan selection view.")
-                # Populate the table *before* trying to focus it
                 self._populate_plan_selection_table()
-                # Now focus the table, let Textual handle default cursor position (usually row 0)
                 plan_table.focus()
-            else:
-                task_table = self.query_one("#task-table", DataTable)
-                # Restore normal footer info (implementation needed in AppFooter)
-                self.app_logger.info("Footer update needed for normal mode")
-                # footer.update_info() # Example: Restore normal info
+            else: # Switching back TO task view
+                self.app_logger.info("Switching back to task view.")
+                # footer.update_info() # Restore normal info if needed
                 task_table.focus()
 
         except Exception as e:
             self.app_logger.error(f"Error updating UI for plan selection state: {e}", exc_info=True)
-            # Ensure focus goes somewhere safe if UI update fails
             try:
                 self.query_one("#task-table").focus()
             except Exception:
-                pass # Ignore if task table itself is the problem
+                pass
 
     # --- New method to populate plan selection table ---
     def _populate_plan_selection_table(self) -> None:
+        """Populates the plan selection table with discovered plans."""
+        # ADD Debug log for self.all_plans
+        self.app_logger.debug(f"Populating plan table. self.all_plans = {self.all_plans!r}")
+        
         table = self.query_one("#plan-selection-table", DataTable)
         table.clear()
+        # ADD Columns explicitly if clear removed them
+        table.add_columns(" ", "Plan Name", "Path", "FullPath") # Ensure columns exist
+
         base_dir = Path.cwd()
+        row_count = 0 # Counter for added rows
+        self.app_logger.info("Starting to iterate through self.all_plans...") # ADD Log before loop
         for plan_path, project_data in self.all_plans.items():
             relative_path_str = str(plan_path.relative_to(base_dir) if plan_path.is_relative_to(base_dir) else plan_path)
             is_focus = project_data.focus if project_data else False
@@ -802,13 +1096,19 @@ class TaskViewer(App):
             else:
                 plan_name = project_data.project.name
 
-            table.add_row(
-                focus_indicator,
-                plan_name, # This will now be a Text object in case of error
-                relative_path_str,
-                str(plan_path.resolve()),
-                key=str(plan_path.resolve()) # Use full path as key
-            )
+            try:
+                table.add_row(
+                    focus_indicator,
+                    plan_name, # This will now be a Text object in case of error
+                    relative_path_str,
+                    str(plan_path.resolve()), # Store full path as hidden data
+                    key=str(plan_path.resolve()) # Use full path as key
+                )
+                row_count += 1
+            except Exception as e:
+                self.app_logger.error(f"Error adding row for plan {plan_path}: {e}", exc_info=True)
+        
+        self.app_logger.info(f"Finished iterating through self.all_plans. Added {row_count} rows.") # ADD Log after loop
 
     # --- Modified switch_focus_plan ---
     def switch_focus_plan(self, target_path: Path) -> None:
@@ -864,14 +1164,18 @@ class TaskViewer(App):
             if self.current_plan_path == target_path:
                 self.app_logger.info(f"Successfully switched focus to {target_path.name}")
                 self.notify(f"Switched to plan: {target_path.name}")
-                self.update_ui() # Update the UI to reflect the new plan
+                # --- FIX: Set selecting_plan=False BEFORE update_ui --- 
                 self.selecting_plan = False # Exit selection mode after successful switch
+                self.update_ui() # Update the UI to reflect the new plan
             else:
                 # This might happen if manage_focus failed to set the focus for some reason
                 self.app_logger.error(f"Focus switch failed. Expected {target_path}, but got {self.current_plan_path}")
                 self.notify(f"Failed to switch focus to {target_path.name}", severity="error")
                 # Optionally, try to revert or handle the error state
                 # For now, the UI might be out of sync or show the previous plan
+                # Make sure to exit selection mode even on failure
+                if self.selecting_plan:
+                     self.selecting_plan = False
 
         except Exception as e:
             self.app_logger.exception(f"Error switching focus to {target_path.name}")
@@ -948,132 +1252,90 @@ class TaskViewer(App):
 
         self.switch_focus_plan(target_path)
 
-    # --- New/Modified on_key handler --- 
-    async def on_key(self, event: events.Key) -> None:
-        """Handle key presses, especially for plan selection mode."""
-        # Log all key presses for debugging
-        self.app_logger.debug(f"Key pressed: {event.key}, Selecting Plan: {self.selecting_plan}")
-
-        if self.selecting_plan:
-            if event.key == "enter":
-                event.stop() # Prevent other handlers from processing Enter
-                self.app_logger.info("Enter pressed in plan selection mode.")
-                try:
-                    table = self.query_one("#plan-selection-table", DataTable)
-                    # Log focus status
-                    self.app_logger.debug(f"Plan table focused: {table.has_focus}, App focused: {self.focused}")
-                    # --- Corrected condition --- 
-                    if table.cursor_row is not None:
-                        # --- Changed back AGAIN to get_row_at --- 
-                        row_data = table.get_row_at(table.cursor_row)
-                        self.app_logger.debug(f"get_row_at returned: {row_data!r} (Type: {type(row_data)})" )
-                        
-                        key_string = None
-                        if isinstance(row_data, (list, tuple)) and len(row_data) > 3: # Assuming key is 4th element (index 3)
-                             key_string = row_data[3] 
-                             if not isinstance(key_string, str):
-                                 self.app_logger.error(f"Extracted key from row_data is not a string: {key_string!r}")
-                                 key_string = None # Treat as failure
-                        else:
-                             self.app_logger.error(f"Could not extract key string from row_data: {row_data!r}")
-
-                        if key_string: # Check if we got a valid string key
-                            selected_path = Path(key_string)
-                            if self.all_plans.get(selected_path) is not None:
-                                self.app_logger.info(f"Attempting switch via Enter to: {selected_path}")
-                                self.switch_focus_plan(selected_path)
-                            else:
-                                self.app_logger.warning(f"Enter selected invalid plan: {selected_path}")
-                                self.notify(f"Cannot select plan '{selected_path.name}' due to loading error.", severity="error")
-                        else:
-                            self.app_logger.error("Could not get row key for Enter selection.")
-                    else:
-                         self.app_logger.warning("Enter pressed with no valid row selected in plan table.")
-                except Exception as e:
-                     self.app_logger.error(f"Error processing Enter in plan selection: {e}", exc_info=True)
-
-            elif event.key == "escape":
-                event.stop() # Prevent other handlers from processing Escape
-                self.app_logger.info("Escape pressed in plan selection mode. Exiting selection.")
-                self.selecting_plan = False # This will trigger watch and focus task table
-            
-        # If not selecting_plan, or key was not handled above, 
-        # let the default key handling occur (e.g., for app-level bindings like Ctrl+C)
-
-    # --- Modified initial load --- 
-    def _initial_load_and_focus(self) -> None:
-        """Loads initial plan files and determines the focus plan."""
-        self.app_logger.info("Performing initial load and focus management...")
+    # --- ADD Action to Toggle Detail Panel ---
+    def action_toggle_detail_panel(self) -> None:
+        """Toggles the visibility of the detail panel and adjusts layout."""
+        self.app_logger.info("Action: Toggle Detail Panel")
         try:
-            # Ensure core imports are available if not already module level
-            # from ..core import load_plans, manage_focus
-            # from datetime import datetime
+            detail_panel = self.query_one("#detail-panel")
+            task_table = self.query_one("#task-table")
 
-            loaded_plans = load_plans(self.initial_plan_files)
-            # --- Debug Logging Start ---
-            log_loaded_plans = {str(p): ("Project" if plan else "None") for p, plan in loaded_plans.items()}
-            self.app_logger.debug(f"_initial_load_and_focus: load_plans result: {log_loaded_plans}")
+            is_visible = detail_panel.display # Check current state
 
-            # manage_focus might save files if focus needs correction
-            updated_plans, focus_path = manage_focus(loaded_plans)
-
-            self.app_logger.debug(f"_initial_load_and_focus: manage_focus returned focus_path: {focus_path}")
-
-            self.all_plans = updated_plans  # Update reactive variable
-            self.current_plan_path = focus_path  # Update reactive variable
-            self.last_load_time = datetime.now()
-
-            self.app_logger.debug(f"_initial_load_and_focus: Set self.current_plan_path to: {self.current_plan_path}")
-            # --- Debug Logging End ---
-
-            if self.current_plan_path is None and any(
-                updated_plans.values()
-            ):  # Check if focus is None but plans exist
-                self.app_logger.error(
-                    "Failed to determine a focus plan during initial load, although valid plans exist."
-                )
-                # Display an error message in the UI? Maybe ProjectInfo?
-                # The update_ui call below will handle displaying an error state
-                self.notify(
-                    "Error: Could not set focus plan.",
-                    title="Load Error",
-                    severity="error",
-                )
-            elif self.current_plan_path is None:
-                self.app_logger.warning("No valid plans loaded or found.")
-                self.notify(
-                    "No valid plan files found or loaded.",
-                    title="Load Warning",
-                    severity="warning",
-                )
-
-            self.update_ui()  # Update UI with loaded data
-            # Update footer initially
-            try:
-                footer = self.query_one(AppFooter)
-                footer.current_plan_path = self.current_plan_path
-                footer.update_info()  # Update with time and initial plan
-            except Exception as e:
-                self.app_logger.error(f"Error setting initial footer info: {e}")
-
-            self.app_logger.info("Initial load and focus management complete.")
+            if is_visible:
+                # Hide panel, expand table
+                detail_panel.display = False
+                task_table.styles.width = "100%"
+                self.app_logger.debug("Detail panel hidden, task table expanded.")
+            else:
+                # Show panel, shrink table
+                detail_panel.display = True
+                task_table.styles.width = "60%"
+                self.app_logger.debug("Detail panel shown, task table restored to 60% width.")
+            
+            # Ensure focus returns to the task table after toggle
+            task_table.focus()
 
         except Exception as e:
-            self.app_logger.exception(
-                "Critical error during initial load and focus management."
-            )
-            # Display error to user
-            self.notify(
-                f"Critical error loading plans: {e}",
-                title="Load Error",
-                severity="error",
-                timeout=10,
-            )
-            # Set state to indicate error
-            self.all_plans = {}
-            self.current_plan_path = None
-            self.update_ui()  # Try to update UI to show empty state/error
+            self.app_logger.error(f"Error in action_toggle_detail_panel: {e}", exc_info=True)
 
+    # --- ADD on_key method to handle Enter/Escape in plan selection --- 
+    async def on_key(self, event: events.Key) -> None:
+        """Handle key presses, especially for plan selection."""
+        self.app_logger.debug(f"Key pressed: {event.key}, Selecting Plan: {self.selecting_plan}, Focused: {self.focused}")
+
+        # Handle Escape key
+        if event.key == "escape":
+            if self.selecting_plan: # If in plan selection mode
+                try:
+                    plan_table = self.query_one("#plan-selection-table", DataTable)
+                    # Check if the plan table itself has focus (or is focus_within)
+                    if self.focused and (self.focused.id == "plan-selection-table" or plan_table.has_focus):
+                        event.stop()
+                        self.app_logger.info("Escape pressed in plan selection mode. Exiting selection.")
+                        self.selecting_plan = False
+                        return # Handled
+                    else:
+                        self.app_logger.debug("Escape pressed, but plan table not focused. Letting bubble.")
+                except Exception as e:
+                    self.app_logger.error(f"Error checking focus for escape in plan selection: {e}")
+            # Let escape bubble up if not handled (e.g., for app quit)
+            self.app_logger.debug("Escape not handled by plan selection logic.")
+
+        # Handle Enter key in Plan Selection
+        elif self.selecting_plan and event.key == "enter":
+            event.stop() # Stop event propagation immediately
+            self.app_logger.info("Enter pressed in plan selection mode.")
+            try:
+                table = self.query_one("#plan-selection-table", DataTable)
+                if table.cursor_row is not None:
+                    # Use coordinate_to_cell_key to get the key reliably
+                    cell_key = table.coordinate_to_cell_key(Coordinate(table.cursor_row, 0))
+                    row_key = cell_key.row_key
+                    if row_key and row_key.value is not None:
+                        selected_path_str = str(row_key.value)
+                        try:
+                            selected_path = Path(selected_path_str)
+                            self.app_logger.info(f"Attempting switch via Enter to: {selected_path}")
+                            self.switch_focus_plan(selected_path)
+                            # switch_focus_plan sets selecting_plan = False on success
+                        except Exception as path_e:
+                            self.app_logger.error(f"Error converting selected key '{selected_path_str}' to Path: {path_e}")
+                            self.notify(f"Internal error selecting plan path.", severity="error")
+                    else:
+                        self.app_logger.error("Could not get valid row key for Enter selection.")
+                        self.notify(f"Error getting selected plan key.", severity="error")
+                else:
+                    self.app_logger.warning("Enter pressed with no valid row selected in plan table.")
+                    self.notify(f"No plan selected.", severity="warning")
+            except Exception as e:
+                self.app_logger.error(f"Error processing Enter in plan selection: {e}", exc_info=True)
+                self.notify(f"Error processing selection: {e}", severity="error")
+            return # Handled
+        
+        # If not handled by the above, let the event bubble up for other bindings
+        self.app_logger.debug(f"Key {event.key} not handled by on_key logic.")
+        
 
 # Note: The part that runs the app (`if __name__ == "__main__":`) is NOT copied here.
 # It will be handled by the CLI entry point (Task 11). 

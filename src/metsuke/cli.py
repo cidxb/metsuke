@@ -160,6 +160,12 @@ def list_tasks(ctx):
 @click.command("init")
 @click.option('--mode', type=click.Choice(['single', 'multi']), default='single', help='Create a single root plan or a multi-plan structure in plans/.')
 def init(mode):
+    # --- ADD COMMENT: Template Dependency ---
+    # NOTE: This command generates a new plan file based on standard templates
+    # defined in this module (or imported from core.py). This includes the
+    # standard collaboration usage comment block (`collaboration_guide_template`).
+    # If the standard comment template is updated (e.g., in PROJECT_PLAN.yaml or core.py),
+    # this command's output MUST be updated accordingly to maintain consistency.
     """Initialize a new project plan file (PROJECT_PLAN.yaml or plans/PROJECT_PLAN_main.yaml).
 
     Creates a plan file with a default structure, example tasks, project context
@@ -291,21 +297,46 @@ def add_plan(ctx, subproject_name):
         focus=False # New plans should typically not be focus initially
     )
 
-    # 5. Save New Plan
-    if not save_plan(new_project, new_plan_path):
-        click.echo(f"Error: Failed to save new plan file to {new_plan_path}.", err=True)
-        # If save fails, no focus change happened, so simpler error message
-        click.echo(f"Critical Error: New plan save failed. Please check {new_plan_path}", err=True)
-        sys.exit(1)
+    # --- 5. Save New Plan (Revised to write header first) ---
+    try:
+        # Serialize the Pydantic model to a dictionary
+        project_dict = new_project.model_dump(mode='python')
+        # Generate YAML content string from the dictionary
+        yaml_content = yaml.safe_dump(
+            project_dict,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            indent=2
+        )
 
-    # 6. Feedback
-    click.echo(f"Successfully created plan: {new_plan_path.relative_to(base_dir)} (focus remains unchanged)")
+        # Write the header and YAML content manually
+        with open(new_plan_path, "w", encoding="utf-8") as f:
+            f.write(collaboration_guide_template)
+            f.write("\n") # Ensure a newline after the template
+            f.write(yaml_content)
+            
+        click.echo(f"Successfully created plan: {new_plan_path.relative_to(base_dir)} (focus remains unchanged)")
+    except Exception as e:
+        click.echo(f"Error creating or writing plan file {new_plan_path}: {e}", err=True)
+        logging.exception("Error in add-plan save operation")
+        sys.exit(1)
 
 
 @click.command("update-plan")
 @click.argument("path_spec", type=click.Path(exists=False, path_type=Path), required=False, default=None)
 def update_plan(path_spec: Optional[Path]):
-    """Check and update plan file(s) to the latest schema format."""
+    # --- ADD COMMENT: Scope and Potential Enhancement ---
+    # NOTE: This command currently focuses on migrating the *data structure* of existing
+    # plan files to the latest schema (e.g., ensuring 'focus' and 'completion_date' fields exist).
+    # IDEALLY, it should ALSO update the header comment block (collaboration usage guidelines)
+    # in existing plan files to match the latest standard template (`collaboration_guide_template`)
+    # to ensure consistency across all project plans.
+    # TODO: Consider enhancing this command to include header comment updates in the future.
+    """Update existing plan file(s) to the latest schema.
+
+    Check and update plan file(s) to the latest schema format.
+    """
     click.echo("Checking and updating plan file schema...")
 
     # Use ruamel.yaml for round-trip loading/saving to preserve comments/structure
@@ -394,7 +425,7 @@ def update_plan(path_spec: Optional[Path]):
                         del task['completion_date']
                         was_modified = True
             # --- End cleanup ---
-
+            
             if was_modified:
                 click.echo(f"Modifications made to {relative_path_str}. Validating and attempting save...")
                 # 6. Attempt to validate the *modified* dict with Project.model_validate

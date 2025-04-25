@@ -23,10 +23,10 @@ PLANS_DIR_NAME = "plans"
 # --- Template definitions moved from cli.py ---
 DEFAULT_PLAN_FILENAME_FOR_TEMPLATE = "PROJECT_PLAN.yaml" 
 project_name_placeholder = "Your Project Name" 
-collaboration_guide_template = f"""\
-# {DEFAULT_PLAN_FILENAME_FOR_TEMPLATE} - {project_name_placeholder} Project
+collaboration_guide_template = """\
+# PROJECT_PLAN.yaml - Your Project Name Project
 # -------------------- Collaboration Usage --------------------
-# This file serves as the primary planning and tracking document for {project_name_placeholder}.
+# This file serves as the primary planning and tracking document for Your Project Name.
 # AI assistants should primarily interact with the plan file where 'focus: true' is set.
 #
 # As the AI assistant, I will adhere to the following process for planning:
@@ -36,9 +36,9 @@ collaboration_guide_template = f"""\
 #   4. Based on user feedback, iteratively refine and decompose tasks into more specific, granular, and actionable steps until the plan is sufficiently detailed for execution.
 #   5. Ensure each task has a clear description, status, priority, and dependencies correctly mapped.
 #   6. Maintain and update the status of each task (pending, in_progress, Done).
-#   7. Automatically record the 'completion_date' when a task is marked 'Done'.
-#   8. Refer to these tasks when discussing development steps with you.
-#   9. Request explicit confirmation (e.g., "ENTER EXECUTE MODE" or similar) before starting the implementation of any task described herein. Upon receiving confirmation, immediately update the task status to `in_progress` before proceeding.
+#   7. Refer to these tasks when discussing development steps with you.
+#   8. Request explicit confirmation (e.g., "ENTER EXECUTE MODE" or similar) before starting the implementation of any task described herein. Upon receiving confirmation, immediately update the task status to `in_progress` before proceeding.
+#   9. **API Verification:** Before implementing any step involving external library APIs (e.g., Textual), I MUST first verify the correct API usage (imports, function signatures, event names, etc.) by consulting official documentation or performing web searches. Discrepancies between documentation and observed behavior should be noted.
 #  10. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
 # Please keep the context and task list updated to reflect the current project state.
 # The 'focus: true' flag indicates the currently active plan for AI interaction.
@@ -50,7 +50,6 @@ collaboration_guide_template = f"""\
 #   status: ['pending', 'in_progress', 'Done', 'blocked']
 #   priority: ['low', 'medium', 'high']
 #   dependencies: List of task IDs this task depends on. Empty list means no dependencies.
-#   completion_date: ISO 8601 datetime string or null (Automatically set when status becomes 'Done').
 #   context: Optional string containing project context/notes (displays in Help '?').
 """
 # --- End Template definitions ---

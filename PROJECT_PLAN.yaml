@@ -13,7 +13,8 @@
 #   7. Automatically record the 'completion_date' when a task is marked 'Done'.
 #   8. Refer to these tasks when discussing development steps with you.
 #   9. Request explicit confirmation (e.g., "ENTER EXECUTE MODE" or similar) before starting the implementation of any task described herein. Upon receiving confirmation, immediately update the task status to `in_progress` before proceeding.
-#  10. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
+#  10. **API Verification:** Before implementing any step involving external library APIs (e.g., Textual), I MUST first verify the correct API usage (imports, function signatures, event names, etc.) by consulting official documentation or performing web searches. Discrepancies between documentation and observed behavior should be noted.
+#  11. Provide a specific test method or command (if applicable) after implementing a task, before marking it as Done.
 # Please keep the context and task list updated to reflect the current project state.
 # The 'focus: true' flag indicates the currently active plan for AI interaction.
 # -------------------------------------------------------------
@@ -28,9 +29,10 @@
 #   context: Optional string containing project context/notes (displays in Help '?').
 project:
   name: Metsuke
-  version: 0.1.2
+  version: 0.1.3
   license: Apache-2.0
-context: "## Metsuke: AI-Assisted Development Task Manager
+context: |
+  ## Metsuke: AI-Assisted Development Task Manager
 
 
   ### Goal
@@ -55,7 +57,13 @@ context: "## Metsuke: AI-Assisted Development Task Manager
 
   ### Plan Format
 
-  Uses a YAML file (like this one) with `project`, `context`, and `tasks` sections.\n"
+  Uses a YAML file (like this one) with `project`, `context`, and `tasks` sections.
+
+  ### TUI Development Lessons Learned
+
+  *   **API Verification is Crucial:** Always verify external library API usage (imports, events, methods) against documentation *and* test behavior in the target environment before implementing. Document discrepancies. Example: `from textual import on` was correct, but initial tests failed, leading to incorrect assumptions.
+  *   **Event Handling:** Prefer standard event handling mechanisms (like `@on` decorator with correct event names, e.g., `DataTable.CellHighlighted`) over manual key bindings with high priority, especially for widget-internal navigation.
+  *   **Binding Priorities:** High-priority bindings (`priority=True`) can intercept events and prevent default widget behavior (e.g., DataTable navigation). Use them cautiously.
 tasks:
 - id: 1
   title: Set up initial project structure
@@ -73,7 +81,6 @@ tasks:
   status: Done
   priority: high
   dependencies: []
-  completion_date:
 - id: 2
   title: Implement plan loading and basic parsing
   description: "**Plan:**
@@ -89,7 +96,6 @@ tasks:
   priority: high
   dependencies:
   - 1
-  completion_date:
 - id: 3
   title: Implement basic CLI - Show project info
   description: "**Plan:**
@@ -105,7 +111,6 @@ tasks:
   priority: medium
   dependencies:
   - 2
-  completion_date:
 - id: 4
   title: Implement basic CLI - List tasks
   description: "**Plan:**
@@ -123,7 +128,6 @@ tasks:
   priority: medium
   dependencies:
   - 2
-  completion_date:
 - id: 5
   title: Implement core library API access
   description: "**Plan:**
@@ -137,7 +141,6 @@ tasks:
   priority: medium
   dependencies:
   - 2
-  completion_date:
 - id: 6
   title: Set up testing framework and initial test
   description: "**Plan:**
@@ -154,7 +157,6 @@ tasks:
   dependencies:
   - 2
   - 5
-  completion_date:
 - id: 7
   title: Implement plan schema validation
   description: "**Plan:**
@@ -168,7 +170,6 @@ tasks:
   priority: medium
   dependencies:
   - 2
-  completion_date:
 - id: 8
   title: Add Optional TUI Dependencies
   description: "**Plan:**
@@ -180,7 +181,6 @@ tasks:
   priority: medium
   dependencies:
   - 1
-  completion_date:
 - id: 9
   title: Structure TUI Code within Package
   description: "**Plan:**
@@ -196,7 +196,6 @@ tasks:
   priority: high
   dependencies:
   - 1
-  completion_date:
 - id: 10
   title: Integrate TUI with Core Data Loading
   description: "**Plan:**
@@ -216,7 +215,6 @@ tasks:
   - 2
   - 5
   - 9
-  completion_date:
 - id: 11
   title: Add 'metsuke tui' CLI Subcommand
   description: "**Plan:**
@@ -235,7 +233,6 @@ tasks:
   dependencies:
   - 9
   - 8
-  completion_date:
 - id: 12
   title: Refactor TUI Logging Integration
   description: "**Plan:**
@@ -251,7 +248,6 @@ tasks:
   priority: low
   dependencies:
   - 9
-  completion_date:
 - id: 13
   title: Update Documentation for TUI Feature
   description: "**Plan:**
@@ -268,7 +264,6 @@ tasks:
   dependencies:
   - 8
   - 11
-  completion_date:
 - id: 14
   title: Fix TUI Frame Rendering Glitch
   description: "**Plan:**
@@ -284,7 +279,6 @@ tasks:
   priority: low
   dependencies:
   - 9
-  completion_date:
 - id: 15
   title: Enhance README with Collaboration Benefits
   description: "**Plan:**
@@ -304,7 +298,6 @@ tasks:
   priority: medium
   dependencies:
   - 1
-  completion_date:
 - id: 16
   title: Enhance TUI StatusBar Display
   description: "**Plan:**
@@ -320,7 +313,6 @@ tasks:
   priority: low
   dependencies:
   - 9
-  completion_date:
 - id: 17
   title: Add Collaboration Example to README
   description: "**Plan:**
@@ -334,7 +326,6 @@ tasks:
   priority: low
   dependencies:
   - 15
-  completion_date:
 - id: 18
   title: Add Emojis to README for Visual Appeal
   description: "**Plan:**
@@ -351,7 +342,6 @@ tasks:
   dependencies:
   - 15
   - 17
-  completion_date:
 - id: 19
   title: Fix TUI Log Handler Threading Issue on Exit
   description: "**Plan:**
@@ -366,7 +356,6 @@ tasks:
   dependencies:
   - 9
   - 12
-  completion_date:
 - id: 20
   title: Restore/Fix Author Info in TUI StatusBar
   description: "**Plan:**
@@ -382,7 +371,6 @@ tasks:
   priority: low
   dependencies:
   - 9
-  completion_date: 2025-04-22T11:30:44Z
 - id: 21
   title: Remove Redundant Command Palette Hint from HelpScreen
   description: "**Plan:**
@@ -396,7 +384,6 @@ tasks:
   priority: low
   dependencies:
   - 9
-  completion_date:
 - id: 22
   title: Implement 'metsuke init' command for initial plan generation
   description: "**Plan:**
@@ -423,7 +410,6 @@ tasks:
   dependencies:
   - 3
   - 4
-  completion_date:
 - id: 23
   title: Fix AppFooter TypeError related to Binding objects
   description: "**Plan:**
@@ -437,7 +423,6 @@ tasks:
   priority: high
   dependencies:
   - 9
-  completion_date:
 - id: 24
   title: Fix PlanSelectionScreen AttributeError (cursor_row)
   description: "**Plan:**
@@ -451,7 +436,6 @@ tasks:
   priority: high
   dependencies:
   - 9
-  completion_date:
 - id: 25
   title: Fix PlanSelectionScreen MarkupError on focus indicator
   description: "**Plan:**
@@ -465,7 +449,6 @@ tasks:
   priority: medium
   dependencies:
   - 9
-  completion_date:
 - id: 26
   title: Diagnose unresponsive Enter key in PlanSelectionScreen
   description: "**Plan:**
@@ -484,7 +467,6 @@ tasks:
   dependencies:
   - 24
   - 25
-  completion_date:
 - id: 27
   title: 'Refactor TUI: Integrate Plan Selection into Main View'
   description: "**Plan:**
@@ -511,7 +493,6 @@ tasks:
   dependencies:
   - 9
   - 26
-  completion_date:
 - id: 28
   title: Implement `metsuke update-plan` command for schema migration
   description: "**Plan:**
@@ -543,7 +524,6 @@ tasks:
   - 5
   - 7
   - 22
-  completion_date: 2025-04-22T11:30:44Z
 - id: 29
   title: Enhance TUI Visuals and Layout
   description: "**Plan:**
@@ -561,5 +541,30 @@ tasks:
   priority: low
   dependencies:
   - 9
-  completion_date: 2025-04-22T11:30:44Z
+- id: 30
+  title: Implement Task Detail Side Panel in TUI
+  description: >-
+    **Plan (Revised):**
+
+    1.  Modify TUI layout (`app.py`) for a **fixed two-column view**: `#table-area` (left) and `#detail-panel` (right).
+
+    2.  Ensure `#detail-panel` is **always visible** but displays placeholder text when no task detail is actively shown.
+
+    3.  Add widgets to `#detail-panel` for task details (Title, Status, Prio, Deps, Description using Markdown).
+
+    4.  Implement logic to track the highlighted task (`selected_task_for_detail`) in `#task-table` via `on_data_table_row_highlighted`.
+
+    5.  Bind the `Enter` key to `action_show_detail`.
+
+    6.  Implement `action_show_detail` to populate `#detail-panel` with the highlighted task's details using an `update_detail_panel()` method and potentially move focus to the panel.
+
+    7.  Implement `Escape` key handling (via `on_key`) to call `action_clear_detail`.
+
+    8.  Implement `action_clear_detail` to set `selected_task_for_detail` to None, update the panel to show placeholder text, and return focus to the table.
+
+    9.  Adjust CSS for the fixed two-column layout.
+  status: pending
+  priority: medium
+  dependencies:
+  - 9
 focus: true
