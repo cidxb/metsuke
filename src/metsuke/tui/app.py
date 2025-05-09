@@ -235,6 +235,7 @@ class TaskViewer(App):
         # Add back 'q' for quitting, along with Ctrl+C
         Binding("q", "quit", "Quit", show=True, priority=True),
         Binding("ctrl+c", "quit", "Quit", priority=True, show=True),
+        Binding("ctrl+s", "toggle_status", "Toggle Status", show=True),
         ("ctrl+l", "copy_log", "Copy Log"),
         ("ctrl+d", "toggle_log", "Toggle Log"),
         ("ctrl+b", "open_plan_selection", "Select Plan"),
@@ -1406,6 +1407,43 @@ class TaskViewer(App):
         # If not handled by the above, let the event bubble up for other bindings
         self.app_logger.debug(f"Key {event.key} not handled by on_key logic.")
         
+    def action_toggle_status(self) -> None:
+        """Toggle task status between pending/in_progress/Done by modifying the plan file directly."""
+        if not self.selected_task_for_detail or not self.current_plan_path:
+            self.notify("No task selected or no active plan", severity="error")
+            return
 
+        try:
+            # 获取当前任务引用
+            task = self.selected_task_for_detail
+            project = self.all_plans[self.current_plan_path]
+            
+            # 在项目任务列表中查找并更新任务
+            for t in project.tasks:
+                if t.id == task.id:
+                    # 状态轮转逻辑
+                    if t.status == "pending":
+                        t.status = "in_progress"
+                    elif t.status == "in_progress":
+                        t.status = "Done"
+                    else:
+                        t.status = "pending"
+                    
+                    # 更新selected_task引用
+                    self.selected_task_for_detail = t
+                    break
+            
+            # 保存到文件
+            from ..core import save_plan
+            save_plan(project, self.current_plan_path)
+            
+            # 完全刷新UI而不仅是更新单元格
+            self.update_ui()
+            
+            self.notify(f"Status changed to {t.status}")
+            
+        except Exception as e:
+            self.app_logger.error(f"Error toggling task status: {e}")
+            self.notify("Failed to update task status", severity="error")
 # Note: The part that runs the app (`if __name__ == "__main__":`) is NOT copied here.
 # It will be handled by the CLI entry point (Task 11). 
