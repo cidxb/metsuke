@@ -267,6 +267,8 @@ class TaskViewer(App):
     selecting_plan: var[bool] = var(False, init=False)
     # --- State for detail panel ---
     selected_task_for_detail: var[Optional[Task]] = var(None, init=False)
+    # --- State for cursor restore after update ---
+    _target_cursor_row_after_update: Optional[int] = None
     # --- End new reactive variables ---
 
     # Class logger for the App itself
@@ -448,22 +450,48 @@ class TaskViewer(App):
     @on(DataTable.CellHighlighted, "#task-table")
     def on_data_table_cell_highlighted(self, event: DataTable.CellHighlighted) -> None:
         """Handle cursor movement in the task table to update the detail view."""
+        self.app_logger.debug(f"Handler Entered: Event row={event.coordinate.row}, Target flag={self._target_cursor_row_after_update}") # ADDED Log
         # Double-check the event source in case the selector isn't specific enough
         if event.data_table.id != "task-table":
             return
 
-        # Check if cursor_row is valid (not None)
-        # cursor_row = event.cursor_row # Direct access might be None if cursor is invalid
+        # --- Intercept first highlight after UI update ---
+        if self._target_cursor_row_after_update is not None:
+            target_row = self._target_cursor_row_after_update
+            self.app_logger.debug(f"Intercepting: Target row={target_row}, Clearing flag.") # ADDED Log
+            self._target_cursor_row_after_update = None # Clear the flag immediately
+
+            self.app_logger.debug(f"Intercepted highlight event after update. Restoring to row: {target_row}")
+
+            # Validate the target row index before scrolling
+            if 0 <= target_row < event.data_table.row_count:
+                try:
+                    # Use move_cursor instead of scroll_to_row
+                    event.data_table.move_cursor(row=target_row)
+                    self.app_logger.debug(f"Intercepting: Called move_cursor(row={target_row})") # UPDATED Log
+                except Exception as e:
+                    self.app_logger.error(f"Error calling move_cursor during restore: {e}") # UPDATED Log
+            else:
+                 self.app_logger.warning(f"Target restore row {target_row} is out of bounds (0-{event.data_table.row_count-1}). Skipping move.") # UPDATED Log
+
+            # REMOVED return # IMPORTANT: Stop processing this (potentially incorrect) highlight event
+            self.app_logger.debug("Intercepting: Proceeding AFTER move_cursor call.") # UPDATED Log
+        # --- End Intercept ---
+
+        # Original logic follows if not intercepted:
         cursor_row = event.coordinate.row # Use coordinate which should be valid for highlight
+        self.app_logger.debug(f"Handler: Proceeding with original logic for event row {cursor_row}") # ADDED Log
         if cursor_row is None:
             self.app_logger.warning("CellHighlighted event received with None cursor_row.")
             # Optionally clear the detail panel or handle as needed
             # self._update_selected_task_from_row(None)
-            return
-            
+            return # Keep this return
+
         self.app_logger.debug(f"Task table cursor highlighted row: {cursor_row}")
         # Update the detail panel based on the highlighted row
         self._update_selected_task_from_row(cursor_row)
+
+        self.app_logger.debug("Handler Exited.") # ADDED Log
 
     # --- Modified initial load --- 
     def _initial_load_and_focus(self) -> None:
@@ -807,16 +835,20 @@ class TaskViewer(App):
             )
             current_plan = self.all_plans.get(self.current_plan_path)
 
+            # --- Get Table Reference ---
+            try:
+                table = self.query_one("#task-table", DataTable)
+            except Exception as e:
+                 self.app_logger.error(f"Error getting task table reference: {e}")
+                 # Cannot proceed without the table
+                 return
+
             if not current_plan:
                 self.app_logger.warning(
                     "No plan data object found for task UI, clearing."
                 )
-                # Clear Task Table
-                try:
-                    table = self.query_one("#task-table", DataTable)
-                    table.clear(columns=True)
-                except Exception as e:
-                    self.app_logger.error(f"Error clearing task table: {e}")
+                # Clear Task Table (No cursor to save/restore here)
+                table.clear(columns=True)
                 # Clear Stats Widgets
                 try:
                     self.query_one(TaskProgress).update_progress(Counter(), 0.0)
@@ -825,31 +857,69 @@ class TaskViewer(App):
                 except Exception as e:
                     self.app_logger.error(f"Error clearing stats widgets: {e}")
             else:  # If current_plan is valid
+                # --- 2. Save Cursor State ---
+                saved_row_key_value: Optional[str] = None
+                current_cursor_row = table.cursor_row
+                self.app_logger.debug(f"Update UI: Current cursor row before clear: {current_cursor_row}")
+                if current_cursor_row is not None and 0 <= current_cursor_row < table.row_count:
+                    try:
+                        # Use coordinate_to_cell_key which requires a Coordinate object
+                        cell_key = table.coordinate_to_cell_key(Coordinate(current_cursor_row, 0))
+                        row_key = cell_key.row_key # Extract the RowKey
+                        if row_key and row_key.value is not None:
+                             saved_row_key_value = str(row_key.value) # Task ID is stored as string key
+                             self.app_logger.debug(f"Update UI: Saved row key value: {saved_row_key_value}")
+                    except Exception:
+                        self.app_logger.warning("Update UI: Could not get row key for current cursor.", exc_info=True)
+
+                # Clear Task Table
+                table.clear(columns=True)
+
                 # Populate Task Table
                 try:
                     tasks = current_plan.tasks
-                    table = self.query_one("#task-table", DataTable)
-                    table.clear(columns=True)
                     table.add_columns(
                         "ID", "Title", "Prio", "Status", "Deps"
                     )
                     table.fixed_columns = 1
+                    # --- 3. Map RowKey to New Index ---
+                    row_key_to_index_map: Dict[str, int] = {}
                     for task in tasks:
                         deps_str = ", ".join(map(str, task.dependencies)) or "None"
                         status_styled = (
                             f"[{self._get_status_color(task.status)}]{task.status}[/]")
                         priority_styled = f"[{self._get_priority_color(task.priority)}]{task.priority}[/]"
+                        # Use task ID as the row key (ensure it's a string)
+                        row_key_str = str(task.id)
                         table.add_row(
-                            str(task.id),
+                            row_key_str,
                             task.title,
                             priority_styled,
                             status_styled,
                             deps_str,
-                            key=str(task.id),
+                            key=row_key_str,  # Use the string task ID as the key
                         )
+                        # Map the key (string task ID) to the new row index
+                        row_key_to_index_map[row_key_str] = table.row_count - 1
+
+                    # --- 4. Calculate and Store Target Row for Post-Update Restore ---
+                    self._target_cursor_row_after_update = None # Reset first
+                    target_row_index: int = 0 # Default to first row
+                    if saved_row_key_value is not None:
+                        target_row_index = row_key_to_index_map.get(saved_row_key_value, 0)
+                        # Store the calculated index if a key was saved
+                        self._target_cursor_row_after_update = target_row_index
+                        self.app_logger.debug(f"Update UI: Storing target row for restore: {self._target_cursor_row_after_update}. Found key: {saved_row_key_value in row_key_to_index_map}")
+                    else:
+                         self.app_logger.debug("Update UI: No saved row key value. Restore target set to None.")
+                    # --- End Calculation ---
+
+                    # --- 5. Validation (Implicit) ---
+                    # No manual call to update detail panel here. Rely on CellHighlighted event.
+
                 except Exception as e:
                     self.app_logger.error(
-                        f"Error populating task table: {e}", exc_info=True
+                        f"Error populating task table or restoring cursor: {e}", exc_info=True
                     )
 
                 # Update Stats Widgets
