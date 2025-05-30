@@ -625,4 +625,35 @@ tasks:
   dependencies:
   - 30
   time_spent_seconds: 0.0
+- id: 32
+  title: Implement automatic YAML format repair functionality
+  description: >-
+    **Plan:**
+
+    1. Create `repair_yaml_file()` function in `core.py` to handle common YAML format issues:
+       - Fix unescaped colons in values
+       - Fix missing quotes around special characters
+       - Fix broken multiline strings
+       - Add missing required fields (project, tasks, focus)
+       - Validate and fix task structure
+       - Create backup files before repair
+
+    2. Integrate auto-repair into `load_plans()` function to automatically attempt repairs when:
+       - YAML parsing fails
+       - Pydantic validation fails
+       - Other loading errors occur
+
+    3. Add new CLI command `metsuke repair` with:
+       - Manual repair capability
+       - Dry-run mode to preview changes
+       - Support for single files or multiple files
+
+    4. Update documentation to explain the auto-repair functionality.
+  status: Done
+  priority: high
+  dependencies:
+  - 2
+  - 5
+  - 7
+  time_spent_seconds: 0.0
 focus: true

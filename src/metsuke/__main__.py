@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 # Import commands from cli.py
-from .cli import show_info, list_tasks, run_tui, init, add_plan, update_plan
+from .cli import show_info, list_tasks, run_tui, init, add_plan, update_plan, repair
 
 @click.group()
 @click.version_option()
@@ -31,6 +31,7 @@ main.add_command(run_tui)
 main.add_command(init)
 main.add_command(add_plan)
 main.add_command(update_plan)
+main.add_command(repair)
 
 if __name__ == "__main__":
     main() # pragma: no cover 

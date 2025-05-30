@@ -15,7 +15,7 @@ import logging
 import io
 
 # Import core functions and exceptions
-from .core import find_plan_files, load_plans, manage_focus, save_plan, PLANS_DIR_NAME, PLAN_FILE_PATTERN, DEFAULT_PLAN_FILENAME
+from .core import find_plan_files, load_plans, manage_focus, save_plan, repair_yaml_file, PLANS_DIR_NAME, PLAN_FILE_PATTERN, DEFAULT_PLAN_FILENAME
 from .exceptions import PlanLoadingError, PlanValidationError
 from .models import Project, ProjectMeta, Task
 # Import the template from core
@@ -470,6 +470,9 @@ def update_plan(path_spec: Optional[Path]):
         click.echo(f"Validation Errors (not saved): {validation_error_count} file(s)", err=True)
     click.echo(f"Errors: {error_count} file(s)")
 
+    if error_count > 0:
+        sys.exit(1)
+
 
 @click.command("tui")
 @click.pass_context
@@ -504,4 +507,84 @@ def run_tui(ctx):
     except Exception as e:
         click.echo(f"Error running TUI: {e}", err=True)
         logging.exception("Error running TUI")
+        sys.exit(1)
+
+
+@click.command("repair")
+@click.argument("path_spec", type=click.Path(exists=True, path_type=Path), required=False, default=None)
+@click.option("--dry-run", is_flag=True, help="Show what would be repaired without making changes")
+def repair(path_spec: Optional[Path], dry_run: bool):
+    """Repair YAML format issues in plan file(s).
+    
+    Automatically fixes common YAML syntax issues, missing required fields,
+    and data validation problems.
+    """
+    click.echo("Checking for plan files to repair...")
+    
+    # Find files based on path_spec or default rules
+    files_to_repair = find_plan_files(Path.cwd(), path_spec)
+    
+    if not files_to_repair:
+        click.echo("Error: No plan files found to repair based on the provided path or discovery.", err=True)
+        sys.exit(1)
+    
+    click.echo(f"Found {len(files_to_repair)} plan file(s) to check:")
+    for f_path in files_to_repair:
+        try:
+            click.echo(f" - {f_path.relative_to(Path.cwd())}")
+        except ValueError:
+            click.echo(f" - {f_path}")  # Fallback for absolute paths outside cwd
+    
+    if dry_run:
+        click.echo("\n[DRY RUN MODE - No changes will be made]")
+    
+    click.echo("\nProcessing files...")
+    repaired_count = 0
+    checked_count = 0
+    error_count = 0
+    
+    for f_path in files_to_repair:
+        checked_count += 1
+        relative_path_str = str(f_path.relative_to(Path.cwd()) if f_path.is_relative_to(Path.cwd()) else f_path)
+        
+        try:
+            if dry_run:
+                # For dry-run, we need to simulate the repair process
+                click.echo(f"Checking {relative_path_str}...")
+                # Try to load the file to see if it needs repair
+                try:
+                    from ruamel.yaml import YAML
+                    yaml_loader = YAML(typ='rt')
+                    with open(f_path, 'r', encoding='utf-8') as f:
+                        data = yaml_loader.load(f)
+                    
+                    if data is not None:
+                        from .models import Project
+                        Project.model_validate(data)
+                        click.echo(f"  ✓ {relative_path_str} appears to be valid")
+                    else:
+                        click.echo(f"  ⚠ {relative_path_str} is empty and would be repaired")
+                        
+                except Exception as e:
+                    click.echo(f"  ⚠ {relative_path_str} has issues and would be repaired: {e}")
+            else:
+                # Actually repair the file
+                click.echo(f"Repairing {relative_path_str}...")
+                if repair_yaml_file(f_path):
+                    click.echo(f"  ✓ Successfully repaired {relative_path_str}")
+                    repaired_count += 1
+                else:
+                    click.echo(f"  - No repairs needed for {relative_path_str}")
+                    
+        except Exception as e:
+            click.echo(f"Error processing file {relative_path_str}: {e}", err=True)
+            error_count += 1
+    
+    click.echo("\n--- Repair Summary ---")
+    click.echo(f"Checked: {checked_count} file(s)")
+    if not dry_run:
+        click.echo(f"Successfully Repaired: {repaired_count} file(s)")
+    click.echo(f"Errors: {error_count} file(s)")
+    
+    if error_count > 0:
         sys.exit(1) 

@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple # Add new types
 import logging # Add logging
 import io
+import re
+import shutil
+from datetime import datetime
 
 from pydantic import ValidationError
 
@@ -56,6 +59,197 @@ collaboration_guide_template = """\
 
 # Logger for core functions
 logger = logging.getLogger(__name__)
+
+
+def repair_yaml_file(filepath: Path) -> bool:
+    """Attempts to automatically repair common YAML format issues.
+    
+    Args:
+        filepath: Path to the YAML file to repair
+        
+    Returns:
+        True if repairs were made and the file was saved, False otherwise
+    """
+    if not filepath.is_file():
+        logger.warning(f"Cannot repair non-existent file: {filepath}")
+        return False
+        
+    # Create backup
+    backup_path = filepath.with_suffix(f"{filepath.suffix}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    try:
+        shutil.copy2(filepath, backup_path)
+        logger.info(f"Created backup: {backup_path}")
+    except Exception as e:
+        logger.warning(f"Could not create backup: {e}")
+    
+    try:
+        # Try to parse the YAML file first
+        yaml_loader = YAML(typ='safe')
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = yaml_loader.load(f)
+        except Exception as e:
+            logger.warning(f"Could not parse YAML: {e}")
+            return False
+        
+        if not isinstance(data, dict):
+            logger.warning("YAML content is not a dictionary, cannot repair")
+            return False
+            
+        # Start fixing data structure issues
+        repairs_made = []
+        
+        # Ensure required top-level fields exist
+        if 'project' not in data:
+            data['project'] = {'name': 'Unknown Project', 'version': '0.1.0'}
+            repairs_made.append("Added missing 'project' section")
+        elif not isinstance(data['project'], dict):
+            data['project'] = {'name': 'Unknown Project', 'version': '0.1.0'}
+            repairs_made.append("Fixed invalid 'project' section")
+        else:
+            # Fix project subsection
+            if 'name' not in data['project'] or not data['project']['name']:
+                data['project']['name'] = 'Unknown Project'
+                repairs_made.append("Added missing project name")
+            if 'version' not in data['project'] or not data['project']['version']:
+                data['project']['version'] = '0.1.0'
+                repairs_made.append("Added missing project version")
+        
+        # Ensure tasks is a list
+        if 'tasks' not in data:
+            data['tasks'] = []
+            repairs_made.append("Added missing 'tasks' section")
+        elif not isinstance(data['tasks'], list):
+            data['tasks'] = []
+            repairs_made.append("Fixed invalid 'tasks' section (must be a list)")
+        else:
+            # Fix individual tasks
+            valid_tasks = []
+            for i, task in enumerate(data['tasks']):
+                if not isinstance(task, dict):
+                    repairs_made.append(f"Removed invalid task at index {i} (not a dictionary)")
+                    continue
+                    
+                # Fix required task fields
+                if 'id' not in task:
+                    task['id'] = i + 1
+                    repairs_made.append(f"Added missing task ID for task {i}")
+                elif not isinstance(task['id'], int):
+                    try:
+                        task['id'] = int(task['id']) if task['id'] else i + 1
+                        repairs_made.append(f"Fixed task ID for task {i}")
+                    except (ValueError, TypeError):
+                        task['id'] = i + 1
+                        repairs_made.append(f"Fixed invalid task ID for task {i}")
+                    
+                if 'title' not in task or not task['title']:
+                    task['title'] = f"Task {task['id']}"
+                    repairs_made.append(f"Added missing title for task {task['id']}")
+                    
+                if 'status' not in task or task['status'] not in ['pending', 'in_progress', 'Done', 'blocked']:
+                    task['status'] = 'pending'
+                    repairs_made.append(f"Fixed invalid status for task {task['id']}")
+                    
+                if 'priority' not in task or task['priority'] not in ['low', 'medium', 'high']:
+                    task['priority'] = 'medium'
+                    repairs_made.append(f"Fixed invalid priority for task {task['id']}")
+                    
+                if 'dependencies' not in task:
+                    task['dependencies'] = []
+                    repairs_made.append(f"Added missing dependencies for task {task['id']}")
+                elif not isinstance(task['dependencies'], list):
+                    if isinstance(task['dependencies'], int):
+                        task['dependencies'] = [task['dependencies']]
+                    else:
+                        task['dependencies'] = []
+                    repairs_made.append(f"Fixed invalid dependencies for task {task['id']}")
+                else:
+                    # Ensure all dependencies are integers
+                    valid_deps = []
+                    for dep in task['dependencies']:
+                        if isinstance(dep, int):
+                            valid_deps.append(dep)
+                        elif isinstance(dep, str) and dep.isdigit():
+                            valid_deps.append(int(dep))
+                    if len(valid_deps) != len(task['dependencies']):
+                        task['dependencies'] = valid_deps
+                        repairs_made.append(f"Fixed invalid dependency values for task {task['id']}")
+                        
+                if 'time_spent_seconds' not in task:
+                    task['time_spent_seconds'] = 0.0
+                    repairs_made.append(f"Added missing time_spent_seconds for task {task['id']}")
+                elif not isinstance(task['time_spent_seconds'], (int, float)):
+                    try:
+                        task['time_spent_seconds'] = float(task['time_spent_seconds'])
+                        repairs_made.append(f"Fixed time_spent_seconds for task {task['id']}")
+                    except (ValueError, TypeError):
+                        task['time_spent_seconds'] = 0.0
+                        repairs_made.append(f"Fixed invalid time_spent_seconds for task {task['id']}")
+                    
+                valid_tasks.append(task)
+            
+            data['tasks'] = valid_tasks
+        
+        # Ensure focus field exists
+        if 'focus' not in data:
+            data['focus'] = True
+            repairs_made.append("Added missing 'focus' field")
+        elif not isinstance(data['focus'], bool):
+            data['focus'] = True
+            repairs_made.append("Fixed invalid 'focus' field (must be boolean)")
+        
+        # Ensure context is a string if present
+        if 'context' in data and data['context'] is not None and not isinstance(data['context'], str):
+            data['context'] = str(data['context'])
+            repairs_made.append("Fixed invalid 'context' field (converted to string)")
+        
+        # Validate the repaired data
+        try:
+            project = Project.model_validate(data)
+        except ValidationError as e:
+            logger.error(f"Could not validate repaired data: {e}")
+            return False
+        
+        # Save repaired file if any repairs were made
+        if repairs_made:
+            try:
+                # Use ruamel.yaml for saving
+                yaml_saver = YAML(typ='rt')
+                yaml_saver.indent(mapping=2, sequence=4, offset=2)
+                yaml_saver.width = 1000
+                
+                # Preserve header comments
+                header_lines = []
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        stripped = line.strip()
+                        if stripped.startswith('#'):
+                            header_lines.append(line)
+                        elif stripped == '':
+                            if not header_lines:
+                                continue
+                            header_lines.append(line)
+                        else:
+                            break
+                
+                # Write repaired file
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.writelines(header_lines)
+                    yaml_saver.dump(data, f)
+                
+                logger.info(f"Successfully repaired {filepath}. Repairs made: {', '.join(repairs_made)}")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Could not save repaired file: {e}")
+                return False
+        else:
+            logger.info(f"No repairs needed for {filepath}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error during YAML repair: {e}")
+        return False
 
 
 def find_plan_files(base_dir: Path, explicit_path: Optional[Path]) -> List[Path]:
@@ -119,7 +313,24 @@ def load_plans(plan_files: List[Path]) -> Dict[Path, Optional[Project]]:
             loaded_plans[filepath] = None
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML file {filepath}: {e}")
-            loaded_plans[filepath] = None
+            logger.info(f"Attempting to auto-repair YAML file: {filepath}")
+            # Attempt auto-repair
+            if repair_yaml_file(filepath):
+                logger.info(f"Auto-repair successful for {filepath}, retrying load...")
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = yaml_loader.load(f)
+                        if data is None:
+                            raise PlanLoadingError(f"Plan file is empty after repair: {filepath.resolve()}")
+                    project_data = Project.model_validate(data)
+                    loaded_plans[filepath] = project_data
+                    logger.info(f"Successfully loaded repaired plan: {filepath}")
+                except Exception as retry_e:
+                    logger.error(f"Failed to load even after repair: {filepath}: {retry_e}")
+                    loaded_plans[filepath] = None
+            else:
+                logger.error(f"Auto-repair failed for {filepath}")
+                loaded_plans[filepath] = None
         except ValidationError as e:
             # Log validation errors clearly
             error_details = f"Plan validation failed for {filepath.resolve()}:\n"
@@ -127,10 +338,44 @@ def load_plans(plan_files: List[Path]) -> Dict[Path, Optional[Project]]:
                 loc = ".".join(map(str, error['loc']))
                 error_details += f"  - Field '{loc}': {error['msg']} (value: {error.get('input')})\n"
             logger.error(error_details.strip()) # Log detailed error
-            loaded_plans[filepath] = None # Mark as error
+            logger.info(f"Attempting to auto-repair validation issues: {filepath}")
+            # Attempt auto-repair for validation issues
+            if repair_yaml_file(filepath):
+                logger.info(f"Auto-repair successful for {filepath}, retrying load...")
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = yaml_loader.load(f)
+                        if data is None:
+                            raise PlanLoadingError(f"Plan file is empty after repair: {filepath.resolve()}")
+                    project_data = Project.model_validate(data)
+                    loaded_plans[filepath] = project_data
+                    logger.info(f"Successfully loaded repaired plan: {filepath}")
+                except Exception as retry_e:
+                    logger.error(f"Failed to load even after repair: {filepath}: {retry_e}")
+                    loaded_plans[filepath] = None
+            else:
+                logger.error(f"Auto-repair failed for {filepath}")
+                loaded_plans[filepath] = None # Mark as error
         except Exception as e:
             logger.error(f"Unexpected error reading or validating file {filepath}: {e}", exc_info=True)
-            loaded_plans[filepath] = None
+            logger.info(f"Attempting to auto-repair unexpected error: {filepath}")
+            # Attempt auto-repair for other issues
+            if repair_yaml_file(filepath):
+                logger.info(f"Auto-repair successful for {filepath}, retrying load...")
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = yaml_loader.load(f)
+                        if data is None:
+                            raise PlanLoadingError(f"Plan file is empty after repair: {filepath.resolve()}")
+                    project_data = Project.model_validate(data)
+                    loaded_plans[filepath] = project_data
+                    logger.info(f"Successfully loaded repaired plan: {filepath}")
+                except Exception as retry_e:
+                    logger.error(f"Failed to load even after repair: {filepath}: {retry_e}")
+                    loaded_plans[filepath] = None
+            else:
+                logger.error(f"Auto-repair failed for {filepath}")
+                loaded_plans[filepath] = None
     return loaded_plans
 
 

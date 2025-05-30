@@ -102,8 +102,44 @@ metsuke list-tasks
 # Launch Terminal UI (Requires TUI dependencies)
 metsuke tui
 
+# Initialize a new project plan
+metsuke init
+
+# Repair YAML format issues in plan files
+metsuke repair [file_path] [--dry-run]
+
+# Update plan files to latest schema
+metsuke update-plan
+
 # (More commands to come)
 ```
+
+**Automatic YAML Repair:** 🔧
+
+Metsuke includes intelligent auto-repair functionality that helps maintain plan file integrity:
+
+*   **Automatic Background Repair:** When loading plan files, Metsuke automatically detects and fixes common issues like:
+    *   Invalid task status values (corrected to 'pending', 'in_progress', 'Done', or 'blocked')
+    *   Invalid priority values (corrected to 'low', 'medium', or 'high')
+    *   Missing required fields (automatically added with sensible defaults)
+    *   Invalid data types (converted to correct types where possible)
+    *   Malformed dependency lists (cleaned and validated)
+
+*   **Manual Repair Command:** Use `metsuke repair` to explicitly fix format issues:
+    ```bash
+    # Check what would be repaired (no changes made)
+    metsuke repair --dry-run
+    
+    # Repair issues in the default plan file
+    metsuke repair
+    
+    # Repair a specific file
+    metsuke repair path/to/plan.yaml
+    ```
+
+*   **Backup Creation:** Before making repairs, Metsuke automatically creates timestamped backup files to prevent data loss.
+
+This ensures that even if AI assistants accidentally introduce format issues when editing plan files, Metsuke can automatically correct them and continue working seamlessly.
 
 **Library Usage:**
 
